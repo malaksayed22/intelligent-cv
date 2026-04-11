@@ -1,9 +1,10 @@
-const { success } = require('../utils/api-response');
+const { success, error: errorResponse } = require('../utils/api-response');
 const {
   registerHr,
   loginHr,
   logoutHr
 } = require('../services/hr.service');
+const { addJobPost } = require('../services/job-post.service');
 
 function parseBooleanLike(value, fallback = false) {
   if (typeof value === 'boolean') {
@@ -161,8 +162,36 @@ async function logout(req, res, next) {
   }
 }
 
+async function addPost(req, res, next) {
+  try {
+    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
+    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+
+    if (!accessToken || !refreshToken) {
+      const error = new Error('unauth');
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const createdPost = await addJobPost({
+      accessToken,
+      refreshToken,
+      rawPayload: req.body
+    });
+
+    return res.status(200).json(success(createdPost, 'job post added successfully'));
+  } catch (error) {
+    if (!error.statusCode) {
+      return res.status(500).json(errorResponse('something wrong happened while adding'));
+    }
+
+    return next(error);
+  }
+}
+
 module.exports = {
   registration,
   login,
-  logout
+  logout,
+  addPost
 };

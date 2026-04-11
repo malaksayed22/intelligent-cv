@@ -75,6 +75,27 @@ describe('Health API', () => {
 		expect(response.body.message).toBe('no active sessions');
 	});
 
+	it('rejects raw JSON payload for add-post endpoint', async () => {
+		const response = await request(app)
+			.post('/hr/add-post')
+			.set('Content-Type', 'application/json')
+			.send({ title: 'Backend Engineer' });
+
+		expect(response.statusCode).toBe(415);
+		expect(response.body.success).toBe(false);
+	});
+
+	it('returns unauth when add-post cookies are missing', async () => {
+		const response = await request(app)
+			.post('/hr/add-post')
+			.type('form')
+			.send({ title: 'Backend Engineer' });
+
+		expect(response.statusCode).toBe(401);
+		expect(response.body.success).toBe(false);
+		expect(response.body.message).toBe('unauth');
+	});
+
 	it('returns no active sessions when email-confirmation has no session cookies', async () => {
 		const response = await request(app)
 			.put('/user/email-confirmation')

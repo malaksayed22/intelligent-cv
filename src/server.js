@@ -7,11 +7,13 @@ const {
 	migrateHrFieldNames,
 	disconnectDatabase
 } = require('./config/database');
+const { startJobPostExpiryScheduler } = require('./services/job-post.service');
 
 async function startServer() {
 	await connectToDatabase(config.mongoUri);
 	await ensureCollectionsExist();
 	await migrateHrFieldNames();
+	const stopJobPostExpiryScheduler = startJobPostExpiryScheduler();
 
 	const server = http.createServer(app);
 
@@ -22,6 +24,7 @@ async function startServer() {
 
 	const shutdown = async (signal) => {
 		console.log(`${signal} received. Shutting down gracefully.`);
+		stopJobPostExpiryScheduler();
 
 		server.close(async () => {
 			await disconnectDatabase();
