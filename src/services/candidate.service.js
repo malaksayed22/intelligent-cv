@@ -1,9 +1,15 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const path = require('path');
+const { Readable } = require('stream');
 const CandidateModel = require('../models/candidate.model');
 const JobPostModel = require('../models/job-post.model');
+const UploadedResumeModel = require('../models/uploaded-resume.model');
 const config = require('../config/env');
+const { mongoose } = require('../config/database');
+
+const ALLOWED_RESUME_EXTENSIONS = new Set(['.txt', '.docx', '.pdf']);
 
 function createClientError(message, statusCode = 400) {
   const error = new Error(message);
@@ -103,23 +109,86 @@ async function logoutCandidate({ accessToken, refreshToken }) {
   );
 }
 
-async function getActiveJobPostsForCandidate({ accessToken, refreshToken }) {
+async function getActiveCandidateSession({ accessToken, refreshToken }) {
   const candidate = await CandidateModel.findOne({
     access_tokens: accessToken,
     refresh_tokens: refreshToken
-  }).select('_id');
+  });
 
   if (!candidate) {
     throw createClientError('unauth', 401);
   }
 
+  return candidate;
+}
+
+async function getActiveJobPostsForCandidate({ accessToken, refreshToken }) {
+  await getActiveCandidateSession({ accessToken, refreshToken });
+
   const posts = await JobPostModel.find({ is_active: true }).sort({ posted_at: -1 }).lean();
   return Array.isArray(posts) ? posts : [];
+}
+
+function validateResumeFile(file) {
+  if (!file) {
+    throw createClientError('file is required.', 400);
+  }
+
+  const extension = path.extname(file.originalname || '').toLowerCase();
+
+  if (!ALLOWED_RESUME_EXTENSIONS.has(extension)) {
+    throw createClientError('file type is not allowed.', 400);
+  }
+
+  if (!Buffer.isBuffer(file.buffer) || file.buffer.length === 0) {
+    throw createClientError('file is required.', 400);
+  }
+}
+
+function uploadBufferToGridFs({ fileBuffer, filename, contentType, metadata }) {
+  return new Promise((resolve, reject) => {
+    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+      bucketName: 'fs'
+    });
+
+    const uploadStream = bucket.openUploadStream(filename, {
+      contentType,
+      metadata
+    });
+
+    uploadStream.once('error', reject);
+    uploadStream.once('finish', () => resolve(String(uploadStream.id)));
+
+    Readable.from(fileBuffer).pipe(uploadStream);
+  });
+}
+
+async function uploadCandidateResume({ accessToken, refreshToken, file }) {
+  validateResumeFile(file);
+  const candidate = await getActiveCandidateSession({ accessToken, refreshToken });
+
+  const gridFsId = await uploadBufferToGridFs({
+    fileBuffer: file.buffer,
+    filename: file.originalname,
+    contentType: file.mimetype,
+    metadata: {
+      candidate_id: String(candidate._id)
+    }
+  });
+
+  await UploadedResumeModel.create({
+    candidate_id: String(candidate._id),
+    candidate_name: candidate.name,
+    candidate_email: candidate.email,
+    candidate_is_confirmed: candidate.is_confirmed,
+    resume_gridfs_id: gridFsId
+  });
 }
 
 module.exports = {
   registerCandidate,
   loginCandidate,
   logoutCandidate,
-  getActiveJobPostsForCandidate
+  getActiveJobPostsForCandidate,
+  uploadCandidateResume
 };

@@ -248,4 +248,25 @@ describe('Health API', () => {
 		expect(response.body.success).toBe(false);
 		expect(response.body.message).toBe('unauth');
 	});
+
+	it('rejects raw JSON payload for candidate upload-resume endpoint', async () => {
+		const response = await request(app)
+			.post('/candidate/upload-resume')
+			.set('Content-Type', 'application/json')
+			.send({});
+
+		expect(response.statusCode).toBe(415);
+		expect(response.body.success).toBe(false);
+	});
+
+	it('returns unauth when candidate upload-resume cookies are missing', async () => {
+		const response = await request(app)
+			.post('/candidate/upload-resume')
+			.type('form')
+			.attach('file', Buffer.from('sample resume'), 'resume.txt');
+
+		expect(response.statusCode).toBe(401);
+		expect(response.body.success).toBe(false);
+		expect(response.body.message).toBe('unauth');
+	});
 });

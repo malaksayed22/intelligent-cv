@@ -5,11 +5,18 @@ const {
   registration,
   login,
   logout,
-  getPosts
+  getPosts,
+  uploadResume
 } = require('../controllers/candidate.controller');
 
 const candidateRouter = Router();
 const formDataParser = multer();
+const resumeUploadParser = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024
+  }
+});
 
 function requireFormContentType(req, res, next) {
   if (req.is('multipart/form-data') || req.is('application/x-www-form-urlencoded')) {
@@ -35,5 +42,6 @@ candidateRouter.post('/registration', requireFormContentType, formDataParser.non
 candidateRouter.post('/login', requireJsonContentType, express.json({ limit: '32kb' }), login);
 candidateRouter.post('/logout', logout);
 candidateRouter.get('/get-posts', getPosts);
+candidateRouter.post('/upload-resume', requireFormContentType, resumeUploadParser.single('file'), uploadResume);
 
 module.exports = candidateRouter;

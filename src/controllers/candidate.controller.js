@@ -3,7 +3,8 @@ const {
   registerCandidate,
   loginCandidate,
   logoutCandidate,
-  getActiveJobPostsForCandidate
+  getActiveJobPostsForCandidate,
+  uploadCandidateResume
 } = require('../services/candidate.service');
 
 function parseBooleanLike(value, fallback = false) {
@@ -182,9 +183,40 @@ async function getPosts(req, res, next) {
   }
 }
 
+async function uploadResume(req, res, next) {
+  try {
+    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
+    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+
+    if (!accessToken || !refreshToken) {
+      const error = new Error('unauth');
+      error.statusCode = 401;
+      throw error;
+    }
+
+    await uploadCandidateResume({
+      accessToken,
+      refreshToken,
+      file: req.file
+    });
+
+    return res.status(200).json(success(null, 'we received the cv successfully'));
+  } catch (error) {
+    if (!error.statusCode) {
+      return res.status(500).json({
+        success: false,
+        message: 'something wrong happened, please try again'
+      });
+    }
+
+    return next(error);
+  }
+}
+
 module.exports = {
   registration,
   login,
   logout,
-  getPosts
+  getPosts,
+  uploadResume
 };
