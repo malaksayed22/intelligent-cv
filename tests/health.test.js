@@ -77,7 +77,7 @@ describe('Health API', () => {
 
 	it('returns no active sessions when email-confirmation has no session cookies', async () => {
 		const response = await request(app)
-			.put('/email-confirmation')
+			.put('/user/email-confirmation')
 			.type('form')
 			.send({});
 
@@ -88,11 +88,33 @@ describe('Health API', () => {
 
 	it('rejects raw json payload for email-confirmation endpoint', async () => {
 		const response = await request(app)
-			.put('/email-confirmation')
+			.put('/user/email-confirmation')
 			.set('Content-Type', 'application/json')
 			.send({ code: '123456' });
 
 		expect(response.statusCode).toBe(415);
 		expect(response.body.success).toBe(false);
+	});
+
+	it('returns no active sessions when send-confirmation-code has no session cookies', async () => {
+		const response = await request(app)
+			.post('/user/send-confirmation-code')
+			.type('form')
+			.send({});
+
+		expect(response.statusCode).toBe(400);
+		expect(response.body.success).toBe(false);
+		expect(response.body.message).toBe('no active sessions');
+	});
+
+	it('returns no active sessions for send-confirmation-code even with json payload', async () => {
+		const response = await request(app)
+			.post('/user/send-confirmation-code')
+			.set('Content-Type', 'application/json')
+			.send({});
+
+		expect(response.statusCode).toBe(400);
+		expect(response.body.success).toBe(false);
+		expect(response.body.message).toBe('no active sessions');
 	});
 });

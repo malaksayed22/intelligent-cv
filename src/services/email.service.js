@@ -1,4 +1,4 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const config = require('../config/env');
 
 function createEmailServiceError(message, statusCode = 400) {
@@ -8,7 +8,7 @@ function createEmailServiceError(message, statusCode = 400) {
 }
 
 function ensureEmailConfig() {
-  if (!config.smtpHost || !config.smtpPort || !config.smtpFrom) {
+  if (!config.resendApiKey || !config.resendFrom) {
     throw createEmailServiceError('email service is not configured', 400);
   }
 }
@@ -16,21 +16,11 @@ function ensureEmailConfig() {
 async function sendConfirmationCodeEmail({ to, code }) {
   ensureEmailConfig();
 
-  const transport = nodemailer.createTransport({
-    host: config.smtpHost,
-    port: config.smtpPort,
-    secure: config.smtpSecure,
-    auth: config.smtpUser && config.smtpPass
-      ? {
-          user: config.smtpUser,
-          pass: config.smtpPass
-        }
-      : undefined
-  });
+  const resend = new Resend(config.resendApiKey);
 
   try {
-    await transport.sendMail({
-      from: config.smtpFrom,
+    await resend.emails.send({
+      from: config.resendFrom,
       to,
       subject: 'Email Confirmation Code',
       text: `Your email confirmation code is ${code}. This code expires in 10 minutes.`

@@ -1,6 +1,9 @@
 const { Router } = require('express');
 const multer = require('multer');
-const { emailConfirmation } = require('../controllers/email-confirmation.controller');
+const {
+  sendConfirmationCode,
+  emailConfirmation
+} = require('../controllers/email-confirmation.controller');
 
 const emailConfirmationRouter = Router();
 const formDataParser = multer();
@@ -15,6 +18,8 @@ function requireFormContentType(req, res, next) {
   return next(error);
 }
 
-emailConfirmationRouter.put('/', requireFormContentType, formDataParser.none(), emailConfirmation);
+emailConfirmationRouter.post('/send-confirmation-code', sendConfirmationCode);
+emailConfirmationRouter.post('/send-confiramtion-code', sendConfirmationCode);
+emailConfirmationRouter.put('/email-confirmation', requireFormContentType, formDataParser.none(), emailConfirmation);
 
 module.exports = emailConfirmationRouter;

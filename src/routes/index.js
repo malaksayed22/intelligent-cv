@@ -7,6 +7,6 @@ const router = Router();
 
 router.use('/health', healthRouter);
 router.use('/hr', hrRouter);
-router.use('/email-confirmation', emailConfirmationRouter);
+router.use('/user', emailConfirmationRouter);
 
 module.exports = router;

@@ -27,6 +27,8 @@ const config = {
 	mongoDbName: process.env.MONGODB_DB_NAME || 'smartHire',
 	jwtSecret: process.env.JWT_SECRET || 'change-this-jwt-secret-in-production',
 	jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'change-this-refresh-secret-in-production',
+	resendApiKey: process.env.RESEND_API_KEY || '',
+	resendFrom: process.env.RESEND_FROM || process.env.SMTP_FROM || 'onboarding@resend.dev',
 	smtpHost: process.env.SMTP_HOST || '',
 	smtpPort: parsePort(process.env.SMTP_PORT, 587),
 	smtpUser: process.env.SMTP_USER || '',
