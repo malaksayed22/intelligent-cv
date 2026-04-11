@@ -117,4 +117,56 @@ describe('Health API', () => {
 		expect(response.body.success).toBe(false);
 		expect(response.body.message).toBe('no active sessions');
 	});
+
+	it('validates required payload for candidate registration with optional phone', async () => {
+		const response = await request(app)
+			.post('/candidate/registration')
+			.type('form')
+			.send({});
+
+		expect(response.statusCode).toBe(400);
+		expect(response.body.success).toBe(false);
+	});
+
+	it('rejects raw JSON payload for candidate registration', async () => {
+		const response = await request(app)
+			.post('/candidate/registration')
+			.set('Content-Type', 'application/json')
+			.send({
+				name: 'Test Candidate',
+				email: 'candidate@example.com',
+				password: 'StrongPass123'
+			});
+
+		expect(response.statusCode).toBe(415);
+		expect(response.body.success).toBe(false);
+	});
+
+	it('validates required payload for candidate login', async () => {
+		const response = await request(app)
+			.post('/candidate/login')
+			.set('Content-Type', 'application/json')
+			.send({});
+
+		expect(response.statusCode).toBe(400);
+		expect(response.body.success).toBe(false);
+	});
+
+	it('rejects non-json payload for candidate login', async () => {
+		const response = await request(app)
+			.post('/candidate/login')
+			.type('form')
+			.send({ email: 'candidate@example.com', password: 'password123' });
+
+		expect(response.statusCode).toBe(415);
+		expect(response.body.success).toBe(false);
+	});
+
+	it('returns no active sessions when candidate logout cookies are missing', async () => {
+		const response = await request(app).post('/candidate/logout');
+
+		expect(response.statusCode).toBe(400);
+		expect(response.body.success).toBe(false);
+		expect(response.body.message).toBe('no active sessions');
+	});
 });
