@@ -24,10 +24,8 @@ Create `.env` at the project root with:
 ```bash
 NODE_ENV=development
 PORT=8000
-MONGODB_URI=mongodb://127.0.0.1:27017/intelligent_agent_db?authSource=hr
-MONGODB_URI_DEV=mongodb://127.0.0.1:27017/intelligent_agent_db?authSource=hr
-MONGODB_URI_PROD=mongodb://127.0.0.1:27017/intelligent_agent_db?tls=true&authSource=hr
-MONGODB_DB_NAME=intelligent_agent_db
+MONGODB_URI_DEV=mongodb://127.0.0.1:27017/smartHire?authSource=hr
+MONGODB_DB_NAME=smartHire
 ```
 
 The app automatically selects:
@@ -65,4 +63,9 @@ The server ensures these collections exist:
 
 ## Health Endpoint
 
-- `GET /api/health`
+- `GET /health`
+
+## HR Endpoint
+
+- `POST /hr/registration`
+- Content-Type: `multipart/form-data` or `application/x-www-form-urlencoded`

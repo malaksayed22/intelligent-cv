@@ -3,7 +3,7 @@ const app = require('../src/app');
 
 describe('Health API', () => {
 	it('returns health details', async () => {
-		const response = await request(app).get('/api/health');
+		const response = await request(app).get('/health');
 
 		expect(response.statusCode).toBe(200);
 		expect(response.body).toMatchObject({
@@ -15,9 +15,35 @@ describe('Health API', () => {
 	});
 
 	it('returns 404 for unknown route', async () => {
-		const response = await request(app).get('/api/unknown');
+		const response = await request(app).get('/unknown');
 
 		expect(response.statusCode).toBe(404);
+		expect(response.body.success).toBe(false);
+	});
+
+	it('validates required payload for HR registration', async () => {
+		const response = await request(app)
+			.post('/hr/registration')
+			.type('form')
+			.send({});
+
+		expect(response.statusCode).toBe(400);
+		expect(response.body.success).toBe(false);
+	});
+
+	it('rejects raw JSON payload for HR registration', async () => {
+		const response = await request(app)
+			.post('/hr/registration')
+			.set('Content-Type', 'application/json')
+			.send({
+				name: 'Test HR',
+				phone: '01000000000',
+				email: 'test@example.com',
+				password: 'StrongPass123',
+				is_comfirmed: false
+			});
+
+		expect(response.statusCode).toBe(415);
 		expect(response.body.success).toBe(false);
 	});
 });

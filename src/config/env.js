@@ -24,7 +24,7 @@ const config = {
 	port: parsePort(process.env.PORT, 3000),
 	mongoUri: nodeEnv === 'production' ? mongoUriProd : mongoUriDev,
 	mongoUriSource: nodeEnv === 'production' ? 'PROD' : 'DEV',
-	mongoDbName: process.env.MONGODB_DB_NAME || 'intelligent_agent_db'
+	mongoDbName: process.env.MONGODB_DB_NAME || 'smartHire'
 };
 
 module.exports = config;

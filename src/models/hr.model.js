@@ -1,0 +1,55 @@
+const { mongoose } = require('../config/database');
+
+const hrSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      minlength: 2,
+      maxlength: 120
+    },
+    phone: {
+      type: String,
+      required: true,
+      trim: true,
+      minlength: 6,
+      maxlength: 30
+    },
+    email: {
+      type: String,
+      required: true,
+      trim: true,
+      lowercase: true,
+      unique: true,
+      maxlength: 255
+    },
+    password: {
+      type: String,
+      required: true,
+      minlength: 8,
+      maxlength: 255
+    },
+    access_token: {
+      type: [String],
+      default: []
+    },
+    refresh_token: {
+      type: [String],
+      default: []
+    },
+    is_comfirmed: {
+      type: Boolean,
+      default: false
+    }
+  },
+  {
+    versionKey: false,
+    collection: 'hr',
+    timestamps: true
+  }
+);
+
+const HrModel = mongoose.models.Hr || mongoose.model('Hr', hrSchema);
+
+module.exports = HrModel;
