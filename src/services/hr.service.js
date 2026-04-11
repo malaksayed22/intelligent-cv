@@ -3,11 +3,99 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const HrModel = require('../models/hr.model');
 const config = require('../config/env');
+const { mongoose } = require('../config/database');
+const { sendConfirmationCodeEmail } = require('./email.service');
 
 function createClientError(message, statusCode = 400) {
   const error = new Error(message);
   error.statusCode = statusCode;
   return error;
+}
+
+function hashVerificationCode(code) {
+  return crypto.createHash('sha256').update(code).digest('hex');
+}
+
+function generateSixDigitCode() {
+  const code = crypto.randomInt(0, 1000000);
+  return String(code).padStart(6, '0');
+}
+
+function isCodeExpired(expiresAt) {
+  if (!expiresAt) {
+    return true;
+  }
+
+  return new Date(expiresAt).getTime() < Date.now();
+}
+
+async function findActivePrincipal(accessToken, refreshToken) {
+  const hr = await HrModel.findOne({
+    access_tokens: accessToken,
+    refresh_tokens: refreshToken
+  });
+
+  if (hr) {
+    return {
+      type: 'hr',
+      record: hr
+    };
+  }
+
+  const candidatesCollection = mongoose.connection.db.collection('candidates');
+  const candidate = await candidatesCollection.findOne({
+    access_tokens: accessToken,
+    refresh_tokens: refreshToken
+  });
+
+  if (candidate) {
+    return {
+      type: 'candidate',
+      record: candidate
+    };
+  }
+
+  return null;
+}
+
+async function setConfirmationCode(principal, codeHash, expiresAt) {
+  if (principal.type === 'hr') {
+    principal.record.email_confirmation_code_hash = codeHash;
+    principal.record.email_confirmation_expires_at = expiresAt;
+    await principal.record.save();
+    return;
+  }
+
+  await mongoose.connection.db.collection('candidates').updateOne(
+    { _id: principal.record._id },
+    {
+      $set: {
+        email_confirmation_code_hash: codeHash,
+        email_confirmation_expires_at: expiresAt
+      }
+    }
+  );
+}
+
+async function confirmPrincipalEmail(principal) {
+  if (principal.type === 'hr') {
+    principal.record.is_confirmed = true;
+    principal.record.email_confirmation_code_hash = null;
+    principal.record.email_confirmation_expires_at = null;
+    await principal.record.save();
+    return;
+  }
+
+  await mongoose.connection.db.collection('candidates').updateOne(
+    { _id: principal.record._id },
+    {
+      $set: {
+        is_confirmed: true,
+        email_confirmation_code_hash: null,
+        email_confirmation_expires_at: null
+      }
+    }
+  );
 }
 
 async function registerHr({ name, phone, email, password, is_confirmed }) {
@@ -101,8 +189,55 @@ async function logoutHr({ accessToken, refreshToken }) {
   );
 }
 
+async function sendEmailConfirmationCode({ accessToken, refreshToken }) {
+  const principal = await findActivePrincipal(accessToken, refreshToken);
+
+  if (!principal) {
+    throw createClientError('no active sessions', 400);
+  }
+
+  if (principal.record.is_confirmed === true) {
+    throw createClientError('already confirmed', 400);
+  }
+
+  if (!principal.record.email || typeof principal.record.email !== 'string') {
+    throw createClientError('email is not available for active session', 400);
+  }
+
+  const code = generateSixDigitCode();
+  const codeHash = hashVerificationCode(code);
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+  await setConfirmationCode(principal, codeHash, expiresAt);
+  await sendConfirmationCodeEmail({ to: principal.record.email, code });
+}
+
+async function verifyEmailConfirmationCode({ accessToken, refreshToken, code }) {
+  const principal = await findActivePrincipal(accessToken, refreshToken);
+
+  if (!principal) {
+    throw createClientError('no active sessions', 400);
+  }
+
+  if (principal.record.is_confirmed === true) {
+    throw createClientError('already confirmed', 400);
+  }
+
+  const incomingCodeHash = hashVerificationCode(code);
+  const savedCodeHash = principal.record.email_confirmation_code_hash;
+  const expiresAt = principal.record.email_confirmation_expires_at;
+
+  if (!savedCodeHash || savedCodeHash !== incomingCodeHash || isCodeExpired(expiresAt)) {
+    throw createClientError('wrong code', 400);
+  }
+
+  await confirmPrincipalEmail(principal);
+}
+
 module.exports = {
   registerHr,
   loginHr,
-  logoutHr
+  logoutHr,
+  sendEmailConfirmationCode,
+  verifyEmailConfirmationCode
 };

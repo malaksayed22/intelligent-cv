@@ -74,4 +74,25 @@ describe('Health API', () => {
 		expect(response.body.success).toBe(false);
 		expect(response.body.message).toBe('no active sessions');
 	});
+
+	it('returns no active sessions when email-confirmation has no session cookies', async () => {
+		const response = await request(app)
+			.put('/hr/email-confirmation')
+			.type('form')
+			.send({});
+
+		expect(response.statusCode).toBe(400);
+		expect(response.body.success).toBe(false);
+		expect(response.body.message).toBe('no active sessions');
+	});
+
+	it('rejects raw json payload for email-confirmation endpoint', async () => {
+		const response = await request(app)
+			.put('/hr/email-confirmation')
+			.set('Content-Type', 'application/json')
+			.send({ code: '123456' });
+
+		expect(response.statusCode).toBe(415);
+		expect(response.body.success).toBe(false);
+	});
 });

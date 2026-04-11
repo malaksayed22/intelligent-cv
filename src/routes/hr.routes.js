@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const express = require('express');
 const multer = require('multer');
-const { registration, login, logout } = require('../controllers/hr.controller');
+const { registration, login, logout, emailConfirmation } = require('../controllers/hr.controller');
 
 const hrRouter = Router();
 const formDataParser = multer();
@@ -29,5 +29,6 @@ function requireJsonContentType(req, res, next) {
 hrRouter.post('/registration', requireFormContentType, formDataParser.none(), registration);
 hrRouter.post('/login', requireJsonContentType, express.json({ limit: '32kb' }), login);
 hrRouter.post('/logout', logout);
+hrRouter.put('/email-confirmation', requireFormContentType, formDataParser.none(), emailConfirmation);
 
 module.exports = hrRouter;

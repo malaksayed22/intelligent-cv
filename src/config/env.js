@@ -26,7 +26,13 @@ const config = {
 	mongoUriSource: nodeEnv === 'production' ? 'PROD' : 'DEV',
 	mongoDbName: process.env.MONGODB_DB_NAME || 'smartHire',
 	jwtSecret: process.env.JWT_SECRET || 'change-this-jwt-secret-in-production',
-	jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'change-this-refresh-secret-in-production'
+	jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'change-this-refresh-secret-in-production',
+	smtpHost: process.env.SMTP_HOST || '',
+	smtpPort: parsePort(process.env.SMTP_PORT, 587),
+	smtpUser: process.env.SMTP_USER || '',
+	smtpPass: process.env.SMTP_PASS || '',
+	smtpFrom: process.env.SMTP_FROM || '',
+	smtpSecure: String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true'
 };
 
 module.exports = config;

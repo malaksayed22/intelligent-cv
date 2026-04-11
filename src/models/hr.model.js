@@ -38,6 +38,14 @@ const hrSchema = new mongoose.Schema(
       type: [String],
       default: []
     },
+    email_confirmation_code_hash: {
+      type: String,
+      default: null
+    },
+    email_confirmation_expires_at: {
+      type: Date,
+      default: null
+    },
     is_confirmed: {
       type: Boolean,
       default: false
