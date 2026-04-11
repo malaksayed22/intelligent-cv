@@ -277,4 +277,26 @@ describe('Health API', () => {
 		expect(response.body.success).toBe(false);
 		expect(response.body.message).toBe('no file with that id');
 	});
+
+	it('rejects raw JSON payload for candidate submit-application endpoint', async () => {
+		const response = await request(app)
+			.post('/candidate/submit-application')
+			.set('Content-Type', 'application/json')
+			.send({ post_id: '680000000000000000000000' });
+
+		expect(response.statusCode).toBe(415);
+		expect(response.body.success).toBe(false);
+	});
+
+	it('returns unauth when candidate submit-application cookies are missing', async () => {
+		const response = await request(app)
+			.post('/candidate/submit-application')
+			.type('form')
+			.field('post_id', '680000000000000000000000')
+			.attach('file', Buffer.from('sample resume'), 'resume.txt');
+
+		expect(response.statusCode).toBe(401);
+		expect(response.body.success).toBe(false);
+		expect(response.body.message).toBe('unauth');
+	});
 });

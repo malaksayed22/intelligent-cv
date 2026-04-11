@@ -6,7 +6,8 @@ const {
   login,
   logout,
   getPosts,
-  uploadResume
+  uploadResume,
+  submitApplication
 } = require('../controllers/candidate.controller');
 
 const candidateRouter = Router();
@@ -43,5 +44,6 @@ candidateRouter.post('/login', requireJsonContentType, express.json({ limit: '32
 candidateRouter.post('/logout', logout);
 candidateRouter.get('/get-posts', getPosts);
 candidateRouter.post('/upload-resume', requireFormContentType, resumeUploadParser.single('file'), uploadResume);
+candidateRouter.post('/submit-application', requireFormContentType, resumeUploadParser.single('file'), submitApplication);
 
 module.exports = candidateRouter;

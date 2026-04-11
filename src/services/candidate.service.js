@@ -6,6 +6,7 @@ const { Readable } = require('stream');
 const CandidateModel = require('../models/candidate.model');
 const JobPostModel = require('../models/job-post.model');
 const UploadedResumeModel = require('../models/uploaded-resume.model');
+const SubmittedApplicationModel = require('../models/submitted-application.model');
 const config = require('../config/env');
 const { mongoose } = require('../config/database');
 
@@ -122,6 +123,12 @@ async function getActiveCandidateSession({ accessToken, refreshToken }) {
   return candidate;
 }
 
+function ensureCandidateConfirmed(candidate) {
+  if (candidate.is_confirmed !== true) {
+    throw createClientError('confirmation required', 400);
+  }
+}
+
 async function getActiveJobPostsForCandidate({ accessToken, refreshToken }) {
   await getActiveCandidateSession({ accessToken, refreshToken });
 
@@ -176,13 +183,53 @@ async function uploadCandidateResume({ accessToken, refreshToken, file }) {
     }
   });
 
-  await UploadedResumeModel.create({
+  const uploadedResume = await UploadedResumeModel.create({
     candidate_id: String(candidate._id),
     candidate_name: candidate.name,
     candidate_email: candidate.email,
     candidate_is_confirmed: candidate.is_confirmed,
     resume_rate: null,
     resume_gridfs_id: gridFsId
+  });
+
+  return uploadedResume;
+}
+
+async function submitCandidateApplication({ accessToken, refreshToken, postId, file }) {
+  if (typeof postId !== 'string' || !postId.trim()) {
+    throw createClientError('post_id is required.', 400);
+  }
+
+  validateResumeFile(file);
+  const candidate = await getActiveCandidateSession({ accessToken, refreshToken });
+  ensureCandidateConfirmed(candidate);
+
+  const candidateId = String(candidate._id);
+  const normalizedPostId = postId.trim();
+
+  const existingApplication = await SubmittedApplicationModel.findOne({
+    candidate_id: candidateId,
+    post_id: normalizedPostId
+  }).select('_id');
+
+  if (existingApplication) {
+    throw createClientError('you already submitted an application for this post, try to submit in another post.', 400);
+  }
+
+  const uploadedResume = await uploadCandidateResume({
+    accessToken,
+    refreshToken,
+    file
+  });
+
+  await SubmittedApplicationModel.create({
+    post_id: normalizedPostId,
+    candidate_id: candidateId,
+    candidate_name: candidate.name,
+    candidate_email: candidate.email,
+    candidate_is_confirmed: candidate.is_confirmed,
+    resume_id: String(uploadedResume._id),
+    statue: 'pending'
   });
 }
 
@@ -191,5 +238,6 @@ module.exports = {
   loginCandidate,
   logoutCandidate,
   getActiveJobPostsForCandidate,
-  uploadCandidateResume
+  uploadCandidateResume,
+  submitCandidateApplication
 };
