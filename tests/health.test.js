@@ -240,4 +240,12 @@ describe('Health API', () => {
 		expect(response.body.success).toBe(false);
 		expect(response.body.message).toBe('no active sessions');
 	});
+
+	it('returns unauth when candidate get-posts cookies are missing', async () => {
+		const response = await request(app).get('/candidate/get-posts');
+
+		expect(response.statusCode).toBe(401);
+		expect(response.body.success).toBe(false);
+		expect(response.body.message).toBe('unauth');
+	});
 });

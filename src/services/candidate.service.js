@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const CandidateModel = require('../models/candidate.model');
+const JobPostModel = require('../models/job-post.model');
 const config = require('../config/env');
 
 function createClientError(message, statusCode = 400) {
@@ -102,8 +103,23 @@ async function logoutCandidate({ accessToken, refreshToken }) {
   );
 }
 
+async function getActiveJobPostsForCandidate({ accessToken, refreshToken }) {
+  const candidate = await CandidateModel.findOne({
+    access_tokens: accessToken,
+    refresh_tokens: refreshToken
+  }).select('_id');
+
+  if (!candidate) {
+    throw createClientError('unauth', 401);
+  }
+
+  const posts = await JobPostModel.find({ is_active: true }).sort({ posted_at: -1 }).lean();
+  return Array.isArray(posts) ? posts : [];
+}
+
 module.exports = {
   registerCandidate,
   loginCandidate,
-  logoutCandidate
+  logoutCandidate,
+  getActiveJobPostsForCandidate
 };

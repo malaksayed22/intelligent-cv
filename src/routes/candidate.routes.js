@@ -4,7 +4,8 @@ const multer = require('multer');
 const {
   registration,
   login,
-  logout
+  logout,
+  getPosts
 } = require('../controllers/candidate.controller');
 
 const candidateRouter = Router();
@@ -33,5 +34,6 @@ function requireJsonContentType(req, res, next) {
 candidateRouter.post('/registration', requireFormContentType, formDataParser.none(), registration);
 candidateRouter.post('/login', requireJsonContentType, express.json({ limit: '32kb' }), login);
 candidateRouter.post('/logout', logout);
+candidateRouter.get('/get-posts', getPosts);
 
 module.exports = candidateRouter;

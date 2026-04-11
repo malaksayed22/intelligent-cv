@@ -2,7 +2,8 @@ const { success } = require('../utils/api-response');
 const {
   registerCandidate,
   loginCandidate,
-  logoutCandidate
+  logoutCandidate,
+  getActiveJobPostsForCandidate
 } = require('../services/candidate.service');
 
 function parseBooleanLike(value, fallback = false) {
@@ -159,8 +160,31 @@ async function logout(req, res, next) {
   }
 }
 
+async function getPosts(req, res, next) {
+  try {
+    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
+    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+
+    if (!accessToken || !refreshToken) {
+      const error = new Error('unauth');
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const posts = await getActiveJobPostsForCandidate({ accessToken, refreshToken });
+    return res.status(200).json(success(posts, 'active job posts retrieved successfully'));
+  } catch (error) {
+    if (error.statusCode === 401) {
+      return next(error);
+    }
+
+    return res.status(200).json(success([], 'active job posts retrieved successfully'));
+  }
+}
+
 module.exports = {
   registration,
   login,
-  logout
+  logout,
+  getPosts
 };
