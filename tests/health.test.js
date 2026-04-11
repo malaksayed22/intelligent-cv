@@ -77,7 +77,7 @@ describe('Health API', () => {
 
 	it('returns no active sessions when email-confirmation has no session cookies', async () => {
 		const response = await request(app)
-			.put('/hr/email-confirmation')
+			.put('/email-confirmation')
 			.type('form')
 			.send({});
 
@@ -88,7 +88,7 @@ describe('Health API', () => {
 
 	it('rejects raw json payload for email-confirmation endpoint', async () => {
 		const response = await request(app)
-			.put('/hr/email-confirmation')
+			.put('/email-confirmation')
 			.set('Content-Type', 'application/json')
 			.send({ code: '123456' });
 
