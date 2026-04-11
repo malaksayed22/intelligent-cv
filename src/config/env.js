@@ -7,7 +7,7 @@ const nodeEnv = process.env.NODE_ENV || 'development';
 
 const fallbackMongoUri = process.env.MONGODB_URI || '';
 const mongoUriDev = process.env.MONGODB_URI_DEV || fallbackMongoUri;
-const mongoUriProd = process.env.MONGODB_URI_PROD || fallbackMongoUri;
+const mongoUriProd = process.env.MONGO_URL_PROD || process.env.MONGODB_URI_PROD || fallbackMongoUri;
 
 function parsePort(value, fallback = 3000) {
 	const port = Number.parseInt(value, 10);
