@@ -5,7 +5,8 @@ const {
 	registration,
 	login,
 	logout,
-	addPost
+	addPost,
+	getPosts
 } = require('../controllers/hr.controller');
 
 const hrRouter = Router();
@@ -35,5 +36,6 @@ hrRouter.post('/registration', requireFormContentType, formDataParser.none(), re
 hrRouter.post('/login', requireJsonContentType, express.json({ limit: '32kb' }), login);
 hrRouter.post('/logout', logout);
 hrRouter.post('/add-post', requireFormContentType, formDataParser.none(), addPost);
+hrRouter.get('/get-posts', getPosts);
 
 module.exports = hrRouter;

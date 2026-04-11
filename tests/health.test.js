@@ -96,6 +96,14 @@ describe('Health API', () => {
 		expect(response.body.message).toBe('unauth');
 	});
 
+	it('returns unauth when get-posts cookies are missing', async () => {
+		const response = await request(app).get('/hr/get-posts');
+
+		expect(response.statusCode).toBe(401);
+		expect(response.body.success).toBe(false);
+		expect(response.body.message).toBe('unauth');
+	});
+
 	it('returns no active sessions when email-confirmation has no session cookies', async () => {
 		const response = await request(app)
 			.put('/user/email-confirmation')

@@ -244,6 +244,13 @@ async function addJobPost({ accessToken, refreshToken, rawPayload }) {
   };
 }
 
+async function getJobPosts({ accessToken, refreshToken }) {
+  await getActiveConfirmedHr({ accessToken, refreshToken });
+
+  const posts = await JobPostModel.find({}).sort({ posted_at: -1 }).lean();
+  return Array.isArray(posts) ? posts : [];
+}
+
 async function deactivateExpiredJobPosts() {
   const now = new Date();
   const posts = await JobPostModel.find({ is_active: true }).select('_id expire_at is_active');
@@ -273,5 +280,6 @@ function startJobPostExpiryScheduler() {
 
 module.exports = {
   addJobPost,
+  getJobPosts,
   startJobPostExpiryScheduler
 };
