@@ -22,6 +22,10 @@ const uploadedResumeSchema = new mongoose.Schema(
       type: Boolean,
       required: true
     },
+    resume_rate: {
+      type: Number,
+      default: null
+    },
     resume_gridfs_id: {
       type: String,
       required: true,

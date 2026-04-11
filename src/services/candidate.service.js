@@ -181,6 +181,7 @@ async function uploadCandidateResume({ accessToken, refreshToken, file }) {
     candidate_name: candidate.name,
     candidate_email: candidate.email,
     candidate_is_confirmed: candidate.is_confirmed,
+    resume_rate: null,
     resume_gridfs_id: gridFsId
   });
 }
