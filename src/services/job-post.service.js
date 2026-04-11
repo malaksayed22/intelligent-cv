@@ -78,6 +78,30 @@ function parseInteger(value, fieldName) {
   return parsed;
 }
 
+function parseBooleanFormValue(value, fieldName, defaultValue = true) {
+  if (value === undefined || value === null || value === '') {
+    return defaultValue;
+  }
+
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+
+    if (normalized === 'true' || normalized === '1') {
+      return true;
+    }
+
+    if (normalized === 'false' || normalized === '0') {
+      return false;
+    }
+  }
+
+  throw createClientError(`${fieldName} must be a boolean.`, 400);
+}
+
 function parseExpireAtDDMMYYYY(value) {
   const raw = toTrimmedString(value);
 
@@ -140,6 +164,7 @@ function normalizeCreateJobPostPayload(body = {}) {
   const employmentType = toTrimmedString(body.employment_type);
   const workMode = toTrimmedString(body.work_mode);
   const expireAt = parseExpireAtDDMMYYYY(body.expire_at);
+  const isActive = parseBooleanFormValue(body.is_active, 'is_active', true);
 
   if (!title) {
     throw createClientError('title is required.', 400);
@@ -190,7 +215,8 @@ function normalizeCreateJobPostPayload(body = {}) {
     employment_type: employmentType,
     work_mode: workMode,
     skills,
-    expire_at: expireAt
+    expire_at: expireAt,
+    is_active: isActive
   };
 }
 
@@ -225,7 +251,7 @@ async function addJobPost({ accessToken, refreshToken, rawPayload }) {
     skills: payload.skills,
     expire_at: payload.expire_at,
     application_count: 0,
-    is_active: true
+    is_active: payload.is_active
   });
 
   return {
