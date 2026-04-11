@@ -269,4 +269,12 @@ describe('Health API', () => {
 		expect(response.body.success).toBe(false);
 		expect(response.body.message).toBe('unauth');
 	});
+
+	it('returns 404 when file does not exist in GridFS', async () => {
+		const response = await request(app).get('/files/680000000000000000000000');
+
+		expect(response.statusCode).toBe(404);
+		expect(response.body.success).toBe(false);
+		expect(response.body.message).toBe('no file with that id');
+	});
 });
