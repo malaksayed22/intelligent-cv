@@ -10,7 +10,7 @@ function createClientError(message, statusCode = 400) {
   return error;
 }
 
-async function registerHr({ name, phone, email, password, is_comfirmed }) {
+async function registerHr({ name, phone, email, password, is_confirmed }) {
   const existing = await HrModel.findOne({ email: email.toLowerCase() }).lean();
 
   if (existing) {
@@ -24,7 +24,7 @@ async function registerHr({ name, phone, email, password, is_comfirmed }) {
     phone,
     email,
     password: hashedPassword,
-    is_comfirmed
+    is_confirmed
   });
 
   return {
@@ -32,7 +32,7 @@ async function registerHr({ name, phone, email, password, is_comfirmed }) {
     name: created.name,
     phone: created.phone,
     email: created.email,
-    is_comfirmed: created.is_comfirmed
+    is_confirmed: created.is_confirmed
   };
 }
 
@@ -81,7 +81,7 @@ async function loginHr({ email, password }) {
       _id: hr._id,
       name: hr.name,
       email: hr.email,
-      is_comfirmed: hr.is_comfirmed
+      is_confirmed: hr.is_confirmed
     }
   };
 }

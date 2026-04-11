@@ -4,12 +4,14 @@ const config = require('./config/env');
 const {
 	connectToDatabase,
 	ensureCollectionsExist,
+	migrateHrFieldNames,
 	disconnectDatabase
 } = require('./config/database');
 
 async function startServer() {
 	await connectToDatabase(config.mongoUri);
 	await ensureCollectionsExist();
+	await migrateHrFieldNames();
 
 	const server = http.createServer(app);
 

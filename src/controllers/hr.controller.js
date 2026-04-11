@@ -27,7 +27,7 @@ function normalizeRegistrationPayload(body = {}) {
     phone: typeof body.phone === 'string' ? body.phone.trim() : '',
     email: typeof body.email === 'string' ? body.email.trim().toLowerCase() : '',
     password: typeof body.password === 'string' ? body.password : '',
-    is_comfirmed: parseBooleanLike(body.is_comfirmed, false)
+    is_confirmed: parseBooleanLike(body.is_confirmed, false)
   };
 }
 

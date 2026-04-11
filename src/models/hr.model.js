@@ -38,7 +38,7 @@ const hrSchema = new mongoose.Schema(
       type: [String],
       default: []
     },
-    is_comfirmed: {
+    is_confirmed: {
       type: Boolean,
       default: false
     }

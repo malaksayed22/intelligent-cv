@@ -40,7 +40,7 @@ describe('Health API', () => {
 				phone: '01000000000',
 				email: 'test@example.com',
 				password: 'StrongPass123',
-				is_comfirmed: false
+				is_confirmed: false
 			});
 
 		expect(response.statusCode).toBe(415);

@@ -33,6 +33,15 @@ async function ensureCollectionsExist() {
   }
 }
 
+async function migrateHrFieldNames() {
+  const db = mongoose.connection.db;
+
+  await db.collection('hr').updateMany(
+    { is_comfirmed: { $exists: true } },
+    { $rename: { is_comfirmed: 'is_confirmed' } }
+  );
+}
+
 async function disconnectDatabase() {
   if (mongoose.connection.readyState !== 0) {
     await mongoose.disconnect();
@@ -44,5 +53,6 @@ module.exports = {
   REQUIRED_COLLECTIONS,
   connectToDatabase,
   ensureCollectionsExist,
+  migrateHrFieldNames,
   disconnectDatabase
 };
