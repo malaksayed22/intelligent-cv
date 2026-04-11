@@ -147,3 +147,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 >>>>>>> c1d8ff9 (creation)
+
+
+prompts/
+prompts.txt
+
