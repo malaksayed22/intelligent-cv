@@ -1,5 +1,8 @@
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const HrModel = require('../models/hr.model');
+const config = require('../config/env');
 
 function createClientError(message, statusCode = 400) {
   const error = new Error(message);
@@ -21,8 +24,6 @@ async function registerHr({ name, phone, email, password, is_comfirmed }) {
     phone,
     email,
     password: hashedPassword,
-    access_token: [],
-    refresh_token: [],
     is_comfirmed
   });
 
@@ -35,6 +36,73 @@ async function registerHr({ name, phone, email, password, is_comfirmed }) {
   };
 }
 
+function buildTokenPayload(hr, tokenType) {
+  return {
+    sub: String(hr._id),
+    email: hr.email,
+    tokenType,
+    jti: crypto.randomUUID()
+  };
+}
+
+async function loginHr({ email, password }) {
+  const hr = await HrModel.findOne({ email: email.toLowerCase() });
+
+  if (!hr) {
+    throw createClientError('wrong email or password', 404);
+  }
+
+  const isPasswordMatch = await bcrypt.compare(password, hr.password);
+
+  if (!isPasswordMatch) {
+    throw createClientError('wrong email or password', 404);
+  }
+
+  const accessToken = jwt.sign(buildTokenPayload(hr, 'access'), config.jwtSecret);
+  const refreshToken = jwt.sign(buildTokenPayload(hr, 'refresh'), config.jwtRefreshSecret);
+
+  if (!Array.isArray(hr.access_tokens)) {
+    hr.access_tokens = [];
+  }
+
+  if (!Array.isArray(hr.refresh_tokens)) {
+    hr.refresh_tokens = [];
+  }
+
+  hr.access_tokens.push(accessToken);
+  hr.refresh_tokens.push(refreshToken);
+  await hr.save();
+
+  return {
+    message: 'successfully logged in',
+    accessToken,
+    refreshToken,
+    hr: {
+      _id: hr._id,
+      name: hr.name,
+      email: hr.email,
+      is_comfirmed: hr.is_comfirmed
+    }
+  };
+}
+
+async function logoutHr({ accessToken, refreshToken }) {
+  await HrModel.updateOne(
+    {
+      access_tokens: accessToken,
+      refresh_tokens: refreshToken
+    },
+    {
+      $pull: {
+        access_tokens: accessToken,
+        refresh_tokens: refreshToken
+      }
+    }
+  );
+}
+
 module.exports = {
-  registerHr
+  registerHr,
+  loginHr,
+  logoutHr
 };

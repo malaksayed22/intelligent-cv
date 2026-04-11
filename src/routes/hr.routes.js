@@ -1,6 +1,7 @@
 const { Router } = require('express');
+const express = require('express');
 const multer = require('multer');
-const { registration } = require('../controllers/hr.controller');
+const { registration, login, logout } = require('../controllers/hr.controller');
 
 const hrRouter = Router();
 const formDataParser = multer();
@@ -15,6 +16,18 @@ function requireFormContentType(req, res, next) {
 	return next(error);
 }
 
+function requireJsonContentType(req, res, next) {
+	if (req.is('application/json')) {
+		return next();
+	}
+
+	const error = new Error('Content-Type must be application/json.');
+	error.statusCode = 415;
+	return next(error);
+}
+
 hrRouter.post('/registration', requireFormContentType, formDataParser.none(), registration);
+hrRouter.post('/login', requireJsonContentType, express.json({ limit: '32kb' }), login);
+hrRouter.post('/logout', logout);
 
 module.exports = hrRouter;

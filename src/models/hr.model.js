@@ -30,11 +30,11 @@ const hrSchema = new mongoose.Schema(
       minlength: 8,
       maxlength: 255
     },
-    access_token: {
+    access_tokens: {
       type: [String],
       default: []
     },
-    refresh_token: {
+    refresh_tokens: {
       type: [String],
       default: []
     },

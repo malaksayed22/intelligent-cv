@@ -26,6 +26,8 @@ NODE_ENV=development
 PORT=8000
 MONGODB_URI_DEV=mongodb://127.0.0.1:27017/smartHire?authSource=hr
 MONGODB_DB_NAME=smartHire
+JWT_SECRET=replace_with_strong_access_secret
+JWT_REFRESH_SECRET=replace_with_strong_refresh_secret
 ```
 
 The app automatically selects:
@@ -69,3 +71,22 @@ The server ensures these collections exist:
 
 - `POST /hr/registration`
 - Content-Type: `multipart/form-data` or `application/x-www-form-urlencoded`
+- `POST /hr/login`
+- Content-Type: `application/json`
+- `POST /hr/logout`
+- Uses cookies: `access_tokens`, `refresh_tokens`
+
+Login request body:
+
+```json
+{
+	"email": "hr@example.com",
+	"password": "yourPassword"
+}
+```
+
+On successful login:
+
+- Response message: `successfully logged in`
+- Sets secure HttpOnly cookies: `access_tokens`, `refresh_tokens`
+- Stores generated tokens in HR document arrays: `access_tokens`, `refresh_tokens`

@@ -46,4 +46,32 @@ describe('Health API', () => {
 		expect(response.statusCode).toBe(415);
 		expect(response.body.success).toBe(false);
 	});
+
+	it('validates required payload for HR login', async () => {
+		const response = await request(app)
+			.post('/hr/login')
+			.set('Content-Type', 'application/json')
+			.send({});
+
+		expect(response.statusCode).toBe(400);
+		expect(response.body.success).toBe(false);
+	});
+
+	it('rejects non-json payload for HR login', async () => {
+		const response = await request(app)
+			.post('/hr/login')
+			.type('form')
+			.send({ email: 'hr@example.com', password: 'password123' });
+
+		expect(response.statusCode).toBe(415);
+		expect(response.body.success).toBe(false);
+	});
+
+	it('returns no active sessions when logout cookies are missing', async () => {
+		const response = await request(app).post('/hr/logout');
+
+		expect(response.statusCode).toBe(400);
+		expect(response.body.success).toBe(false);
+		expect(response.body.message).toBe('no active sessions');
+	});
 });

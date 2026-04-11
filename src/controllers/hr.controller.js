@@ -1,5 +1,5 @@
 const { success } = require('../utils/api-response');
-const { registerHr } = require('../services/hr.service');
+const { registerHr, loginHr, logoutHr } = require('../services/hr.service');
 
 function parseBooleanLike(value, fallback = false) {
   if (typeof value === 'boolean') {
@@ -73,6 +73,92 @@ async function registration(req, res, next) {
   }
 }
 
+function normalizeLoginPayload(body = {}) {
+  return {
+    email: typeof body.email === 'string' ? body.email.trim().toLowerCase() : '',
+    password: typeof body.password === 'string' ? body.password : ''
+  };
+}
+
+function validateLoginPayload(payload) {
+  if (!payload.email) {
+    return 'email is required.';
+  }
+
+  if (!payload.password) {
+    return 'password is required.';
+  }
+
+  return null;
+}
+
+async function login(req, res, next) {
+  try {
+    const payload = normalizeLoginPayload(req.body);
+    const validationError = validateLoginPayload(payload);
+
+    if (validationError) {
+      const error = new Error(validationError);
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const session = await loginHr(payload);
+
+    res.cookie('access_tokens', session.accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict'
+    });
+
+    res.cookie('refresh_tokens', session.refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict'
+    });
+
+    return res.status(200).json(success(session.hr, session.message));
+  } catch (error) {
+    return next(error);
+  }
+}
+
+function getCookieToken(req, pluralName, singularName) {
+  return req.cookies?.[pluralName] || req.cookies?.[singularName] || null;
+}
+
+async function logout(req, res, next) {
+  try {
+    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
+    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+
+    if (!accessToken || !refreshToken) {
+      const error = new Error('no active sessions');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    await logoutHr({ accessToken, refreshToken });
+
+    const cookieOptions = {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'strict'
+    };
+
+    res.clearCookie('access_tokens', cookieOptions);
+    res.clearCookie('refresh_tokens', cookieOptions);
+    res.clearCookie('access_token', cookieOptions);
+    res.clearCookie('refresh_token', cookieOptions);
+
+    return res.status(200).json(success(null, 'successfully logged out'));
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
-  registration
+  registration,
+  login,
+  logout
 };

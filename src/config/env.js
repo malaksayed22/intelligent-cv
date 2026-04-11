@@ -24,7 +24,9 @@ const config = {
 	port: parsePort(process.env.PORT, 3000),
 	mongoUri: nodeEnv === 'production' ? mongoUriProd : mongoUriDev,
 	mongoUriSource: nodeEnv === 'production' ? 'PROD' : 'DEV',
-	mongoDbName: process.env.MONGODB_DB_NAME || 'smartHire'
+	mongoDbName: process.env.MONGODB_DB_NAME || 'smartHire',
+	jwtSecret: process.env.JWT_SECRET || 'change-this-jwt-secret-in-production',
+	jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'change-this-refresh-secret-in-production'
 };
 
 module.exports = config;
