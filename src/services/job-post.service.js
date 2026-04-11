@@ -423,6 +423,28 @@ async function updateJobPost({ accessToken, refreshToken, rawPayload = {} }) {
   return buildJobPostResponse(post);
 }
 
+async function deleteJobPost({ accessToken, refreshToken, rawPayload = {} }) {
+  await getActiveConfirmedHr({ accessToken, refreshToken });
+
+  const postId = toTrimmedString(rawPayload._id);
+
+  if (!postId) {
+    throw createClientError('_id is required.', 400);
+  }
+
+  const post = await JobPostModel.findById(postId);
+
+  if (!post) {
+    throw createClientError('there is no post with this id', 404);
+  }
+
+  const deletionResult = await JobPostModel.deleteOne({ _id: post._id });
+
+  if (deletionResult.deletedCount !== 1) {
+    throw new Error('failed to delete post');
+  }
+}
+
 async function getJobPosts({ accessToken, refreshToken }) {
   await getActiveConfirmedHr({ accessToken, refreshToken });
 
@@ -461,5 +483,6 @@ module.exports = {
   addJobPost,
   getJobPosts,
   updateJobPost,
+  deleteJobPost,
   startJobPostExpiryScheduler
 };

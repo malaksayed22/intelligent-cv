@@ -4,7 +4,12 @@ const {
   loginHr,
   logoutHr
 } = require('../services/hr.service');
-const { addJobPost, getJobPosts, updateJobPost } = require('../services/job-post.service');
+const {
+  addJobPost,
+  getJobPosts,
+  updateJobPost,
+  deleteJobPost
+} = require('../services/job-post.service');
 
 function parseBooleanLike(value, fallback = false) {
   if (typeof value === 'boolean') {
@@ -234,11 +239,39 @@ async function updatePost(req, res, next) {
   }
 }
 
+async function deletePost(req, res, next) {
+  try {
+    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
+    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+
+    if (!accessToken || !refreshToken) {
+      const error = new Error('unauth');
+      error.statusCode = 401;
+      throw error;
+    }
+
+    await deleteJobPost({
+      accessToken,
+      refreshToken,
+      rawPayload: req.body
+    });
+
+    return res.status(200).json(success(null, 'post deleted successfully'));
+  } catch (error) {
+    if (!error.statusCode) {
+      return res.status(500).json(errorResponse('something went wrong while deleteing please try again later'));
+    }
+
+    return next(error);
+  }
+}
+
 module.exports = {
   registration,
   login,
   logout,
   addPost,
   getPosts,
-  updatePost
+  updatePost,
+  deletePost
 };
