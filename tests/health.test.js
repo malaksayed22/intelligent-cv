@@ -104,6 +104,27 @@ describe('Health API', () => {
 		expect(response.body.message).toBe('unauth');
 	});
 
+	it('rejects raw JSON payload for update-post endpoint', async () => {
+		const response = await request(app)
+			.put('/hr/update-post')
+			.set('Content-Type', 'application/json')
+			.send({ _id: '680000000000000000000000' });
+
+		expect(response.statusCode).toBe(415);
+		expect(response.body.success).toBe(false);
+	});
+
+	it('returns unauth when update-post cookies are missing', async () => {
+		const response = await request(app)
+			.put('/hr/update-post')
+			.type('form')
+			.send({ _id: '680000000000000000000000' });
+
+		expect(response.statusCode).toBe(401);
+		expect(response.body.success).toBe(false);
+		expect(response.body.message).toBe('unauth');
+	});
+
 	it('returns no active sessions when email-confirmation has no session cookies', async () => {
 		const response = await request(app)
 			.put('/user/email-confirmation')

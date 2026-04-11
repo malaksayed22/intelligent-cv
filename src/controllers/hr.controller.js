@@ -4,7 +4,7 @@ const {
   loginHr,
   logoutHr
 } = require('../services/hr.service');
-const { addJobPost, getJobPosts } = require('../services/job-post.service');
+const { addJobPost, getJobPosts, updateJobPost } = require('../services/job-post.service');
 
 function parseBooleanLike(value, fallback = false) {
   if (typeof value === 'boolean') {
@@ -207,10 +207,38 @@ async function getPosts(req, res, next) {
   }
 }
 
+async function updatePost(req, res, next) {
+  try {
+    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
+    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+
+    if (!accessToken || !refreshToken) {
+      const error = new Error('unauth');
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const updatedPost = await updateJobPost({
+      accessToken,
+      refreshToken,
+      rawPayload: req.body
+    });
+
+    return res.status(200).json(success(updatedPost, 'job post updated successfully'));
+  } catch (error) {
+    if (!error.statusCode) {
+      return res.status(500).json(errorResponse('something wrong happened while updating'));
+    }
+
+    return next(error);
+  }
+}
+
 module.exports = {
   registration,
   login,
   logout,
   addPost,
-  getPosts
+  getPosts,
+  updatePost
 };

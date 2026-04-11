@@ -102,6 +102,41 @@ function parseBooleanFormValue(value, fieldName, defaultValue = true) {
   throw createClientError(`${fieldName} must be a boolean.`, 400);
 }
 
+function hasOwnField(body, fieldName) {
+  return Object.prototype.hasOwnProperty.call(body, fieldName);
+}
+
+function hasSalaryFields(body = {}) {
+  return hasOwnField(body, 'salary')
+    || hasOwnField(body, 'salary_min')
+    || hasOwnField(body, 'salary_max')
+    || hasOwnField(body, 'salary_currency')
+    || hasOwnField(body, 'salary_period')
+    || hasOwnField(body, 'salary[min]')
+    || hasOwnField(body, 'salary[max]')
+    || hasOwnField(body, 'salary[currency]')
+    || hasOwnField(body, 'salary[period]')
+    || hasOwnField(body, 'min_salary')
+    || hasOwnField(body, 'max_salary');
+}
+
+function buildJobPostResponse(post) {
+  return {
+    _id: post._id,
+    title: post.title,
+    description: post.description,
+    requirements: post.requirements,
+    salary: post.salary,
+    employment_type: post.employment_type,
+    work_mode: post.work_mode,
+    skills: post.skills,
+    posted_at: post.posted_at,
+    expire_at: post.expire_at,
+    application_count: post.application_count,
+    is_active: post.is_active
+  };
+}
+
 function parseExpireAtDDMMYYYY(value) {
   const raw = toTrimmedString(value);
 
@@ -254,20 +289,138 @@ async function addJobPost({ accessToken, refreshToken, rawPayload }) {
     is_active: payload.is_active
   });
 
-  return {
-    _id: created._id,
-    title: created.title,
-    description: created.description,
-    requirements: created.requirements,
-    salary: created.salary,
-    employment_type: created.employment_type,
-    work_mode: created.work_mode,
-    skills: created.skills,
-    posted_at: created.posted_at,
-    expire_at: created.expire_at,
-    application_count: created.application_count,
-    is_active: created.is_active
-  };
+  return buildJobPostResponse(created);
+}
+
+async function updateJobPost({ accessToken, refreshToken, rawPayload = {} }) {
+  await getActiveConfirmedHr({ accessToken, refreshToken });
+
+  const postId = toTrimmedString(rawPayload._id);
+
+  if (!postId) {
+    throw createClientError('_id is required.', 400);
+  }
+
+  const post = await JobPostModel.findById(postId);
+
+  if (!post) {
+    throw createClientError('there is no post with that id', 404);
+  }
+
+  const updates = {};
+
+  if (hasOwnField(rawPayload, 'title')) {
+    const title = toTrimmedString(rawPayload.title);
+
+    if (!title) {
+      throw createClientError('title cannot be empty.', 400);
+    }
+
+    updates.title = title;
+  }
+
+  if (hasOwnField(rawPayload, 'description')) {
+    const description = toTrimmedString(rawPayload.description);
+
+    if (!description) {
+      throw createClientError('description cannot be empty.', 400);
+    }
+
+    updates.description = description;
+  }
+
+  if (hasOwnField(rawPayload, 'requirements')) {
+    updates.requirements = normalizeStringArray(rawPayload.requirements);
+  }
+
+  if (hasOwnField(rawPayload, 'employment_type')) {
+    const employmentType = toTrimmedString(rawPayload.employment_type);
+
+    if (!employmentType) {
+      throw createClientError('employment_type cannot be empty.', 400);
+    }
+
+    updates.employment_type = employmentType;
+  }
+
+  if (hasOwnField(rawPayload, 'work_mode')) {
+    const workMode = toTrimmedString(rawPayload.work_mode);
+
+    if (!workMode) {
+      throw createClientError('work_mode cannot be empty.', 400);
+    }
+
+    updates.work_mode = workMode;
+  }
+
+  if (hasOwnField(rawPayload, 'skills')) {
+    updates.skills = normalizeStringArray(rawPayload.skills);
+  }
+
+  if (hasOwnField(rawPayload, 'expire_at')) {
+    updates.expire_at = parseExpireAtDDMMYYYY(rawPayload.expire_at);
+  }
+
+  if (hasOwnField(rawPayload, 'is_active')) {
+    updates.is_active = parseBooleanFormValue(rawPayload.is_active, 'is_active', post.is_active);
+  }
+
+  if (hasSalaryFields(rawPayload)) {
+    const salarySource = resolveSalarySource(rawPayload);
+    const currentSalary = {
+      min: post.salary?.min,
+      max: post.salary?.max,
+      currency: post.salary?.currency,
+      period: post.salary?.period
+    };
+
+    if (salarySource.min !== undefined) {
+      currentSalary.min = parseInteger(salarySource.min, 'salary.min');
+    }
+
+    if (salarySource.max !== undefined) {
+      currentSalary.max = parseInteger(salarySource.max, 'salary.max');
+    }
+
+    if (salarySource.currency !== undefined) {
+      const currency = toTrimmedString(salarySource.currency);
+
+      if (!currency) {
+        throw createClientError('salary.currency cannot be empty.', 400);
+      }
+
+      currentSalary.currency = currency;
+    }
+
+    if (salarySource.period !== undefined) {
+      const period = toTrimmedString(salarySource.period);
+
+      if (!period) {
+        throw createClientError('salary.period cannot be empty.', 400);
+      }
+
+      currentSalary.period = period;
+    }
+
+    if (!Number.isInteger(currentSalary.min) || !Number.isInteger(currentSalary.max)) {
+      throw createClientError('salary.min and salary.max must be valid integers.', 400);
+    }
+
+    if (!currentSalary.currency || !currentSalary.period) {
+      throw createClientError('salary.currency and salary.period are required.', 400);
+    }
+
+    if (currentSalary.max < currentSalary.min) {
+      throw createClientError('salary.max must be greater than or equal to salary.min.', 400);
+    }
+
+    updates.salary = currentSalary;
+  }
+
+  Object.assign(post, updates);
+  await post.save();
+
+  return buildJobPostResponse(post);
 }
 
 async function getJobPosts({ accessToken, refreshToken }) {
@@ -307,5 +460,6 @@ function startJobPostExpiryScheduler() {
 module.exports = {
   addJobPost,
   getJobPosts,
+  updateJobPost,
   startJobPostExpiryScheduler
 };
