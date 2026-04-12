@@ -104,6 +104,16 @@ describe('Health API', () => {
 		expect(response.body.message).toBe('unauth');
 	});
 
+	it('returns unauth when rank-candidates cookies are missing', async () => {
+		const response = await request(app)
+			.get('/hr/rank-candidates')
+			.query({ post_id: '680000000000000000000000' });
+
+		expect(response.statusCode).toBe(401);
+		expect(response.body.success).toBe(false);
+		expect(response.body.message).toBe('unauth');
+	});
+
 	it('rejects raw JSON payload for update-post endpoint', async () => {
 		const response = await request(app)
 			.put('/hr/update-post')
