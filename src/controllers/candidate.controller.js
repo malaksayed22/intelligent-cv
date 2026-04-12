@@ -261,7 +261,8 @@ async function scoreResume(req, res, next) {
       accessToken,
       refreshToken,
       fileId: req.body?.file_id,
-      jobId: req.body?.job_id
+      jobId: req.body?.job_id,
+      file: req.file
     });
 
     return res.status(200).json(success(scored, 'resume scored successfully'));

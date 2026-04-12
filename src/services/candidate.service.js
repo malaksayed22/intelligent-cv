@@ -241,7 +241,17 @@ async function callScoreResumeApi({ fullInfo, readyFile, filename, contentType }
   });
 
   if (!response.ok) {
-    throw new Error('score api request failed');
+    let responseDetails = '';
+
+    try {
+      responseDetails = await response.text();
+    } catch {
+      responseDetails = '';
+    }
+
+    const error = createClientError('failed to score resume from upstream service', 502);
+    error.details = responseDetails ? responseDetails.slice(0, 500) : undefined;
+    throw error;
   }
 
   const contentTypeHeader = response.headers.get('content-type') || '';
@@ -251,6 +261,36 @@ async function callScoreResumeApi({ fullInfo, readyFile, filename, contentType }
   }
 
   return response.text();
+}
+
+async function resolveResumeForScoring({ fileId, file, candidate }) {
+  if (file) {
+    validateResumeFile(file);
+
+    const gridFsId = await uploadBufferToGridFs({
+      fileBuffer: file.buffer,
+      filename: file.originalname,
+      contentType: file.mimetype,
+      metadata: {
+        candidate_id: String(candidate._id)
+      }
+    });
+
+    return {
+      fileDoc: {
+        _id: new mongoose.Types.ObjectId(gridFsId),
+        filename: file.originalname,
+        contentType: file.mimetype
+      },
+      readyFile: file.buffer
+    };
+  }
+
+  if (typeof fileId !== 'string' || !fileId.trim()) {
+    throw createClientError('either file or file_id is required.', 400);
+  }
+
+  return getGridFsFileById(fileId.trim());
 }
 
 async function uploadCandidateResume({ accessToken, refreshToken, file }) {
@@ -316,11 +356,7 @@ async function submitCandidateApplication({ accessToken, refreshToken, postId, f
   });
 }
 
-async function scoreCandidateResume({ accessToken, refreshToken, fileId, jobId }) {
-  if (typeof fileId !== 'string' || !fileId.trim()) {
-    throw createClientError('file_id is required.', 400);
-  }
-
+async function scoreCandidateResume({ accessToken, refreshToken, fileId, jobId, file }) {
   if (typeof jobId !== 'string' || !jobId.trim()) {
     throw createClientError('job_id is required.', 400);
   }
@@ -335,7 +371,7 @@ async function scoreCandidateResume({ accessToken, refreshToken, fileId, jobId }
   }
 
   const fullInfo = buildFullInfo(post);
-  const { fileDoc, readyFile } = await getGridFsFileById(fileId.trim());
+  const { fileDoc, readyFile } = await resolveResumeForScoring({ fileId, file, candidate });
   const result = await callScoreResumeApi({
     fullInfo,
     readyFile,
