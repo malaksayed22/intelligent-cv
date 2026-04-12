@@ -219,7 +219,7 @@ function buildScoreResumeEndpoint(baseUrl) {
 
 async function callScoreResumeApi({ fullInfo, readyFile, filename, contentType }) {
   const formData = new FormData();
-  formData.append('fullInfo', fullInfo);
+  formData.append('job_description', fullInfo);
   formData.append(
     'file',
     new Blob([readyFile], { type: contentType || 'application/octet-stream' }),
