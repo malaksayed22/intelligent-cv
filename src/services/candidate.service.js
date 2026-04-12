@@ -7,6 +7,7 @@ const CandidateModel = require('../models/candidate.model');
 const JobPostModel = require('../models/job-post.model');
 const UploadedResumeModel = require('../models/uploaded-resume.model');
 const SubmittedApplicationModel = require('../models/submitted-application.model');
+const ScoreModel = require('../models/score.model');
 const config = require('../config/env');
 const { mongoose } = require('../config/database');
 
@@ -170,7 +171,290 @@ function uploadBufferToGridFs({ fileBuffer, filename, contentType, metadata }) {
   });
 }
 
-async function uploadCandidateResume({ accessToken, refreshToken, file }) {
+function streamToBuffer(stream) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+
+    stream.on('data', (chunk) => chunks.push(chunk));
+    stream.once('end', () => resolve(Buffer.concat(chunks)));
+    stream.once('error', reject);
+  });
+}
+
+async function getGridFsFileById(fileId) {
+  if (!mongoose.isValidObjectId(fileId)) {
+    throw createClientError('no file with that id', 404);
+  }
+
+  const objectId = new mongoose.Types.ObjectId(fileId);
+  const fileDoc = await mongoose.connection.db.collection('fs.files').findOne({ _id: objectId });
+
+  if (!fileDoc) {
+    throw createClientError('no file with that id', 404);
+  }
+
+  const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+    bucketName: 'fs'
+  });
+
+  const readyFile = await streamToBuffer(bucket.openDownloadStream(objectId));
+
+  return {
+    fileDoc,
+    readyFile
+  };
+}
+
+function buildFullInfo(job) {
+  const requirements = Array.isArray(job.requirements) ? job.requirements.join('|') : '';
+  const skills = Array.isArray(job.skills) ? job.skills.join('|') : '';
+
+  return `title:${job.title || ''},description:${job.description || ''},requirements:${requirements},employment_type:${job.employment_type || ''},work_mode:${job.work_mode || ''},skills:${skills}`;
+}
+
+function buildScoreResumeEndpoint(baseUrl) {
+  const normalizedBase = String(baseUrl || '').trim().replace(/\/+$/, '');
+  return `${normalizedBase}/score-resume`;
+}
+
+function buildChatEndpoint(baseUrl) {
+  const normalizedBase = String(baseUrl || '').trim().replace(/\/+$/, '');
+  return `${normalizedBase}/chat`;
+}
+
+function extractNumericScoreValue(result) {
+  const candidateKeys = new Set([
+    'score',
+    'resume_score',
+    'total_score',
+    'match_score',
+    'rating'
+  ]);
+
+  function normalizeNumber(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.trunc(value);
+    }
+
+    if (typeof value === 'string') {
+      const parsed = Number.parseFloat(value.trim());
+
+      if (Number.isFinite(parsed)) {
+        return Math.trunc(parsed);
+      }
+    }
+
+    return null;
+  }
+
+  function walk(node) {
+    const direct = normalizeNumber(node);
+
+    if (direct !== null) {
+      return direct;
+    }
+
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        const fromItem = walk(item);
+
+        if (fromItem !== null) {
+          return fromItem;
+        }
+      }
+
+      return null;
+    }
+
+    if (!node || typeof node !== 'object') {
+      return null;
+    }
+
+    for (const [key, value] of Object.entries(node)) {
+      if (candidateKeys.has(String(key).toLowerCase())) {
+        const fromKnownKey = normalizeNumber(value);
+
+        if (fromKnownKey !== null) {
+          return fromKnownKey;
+        }
+      }
+    }
+
+    for (const value of Object.values(node)) {
+      const nested = walk(value);
+
+      if (nested !== null) {
+        return nested;
+      }
+    }
+
+    return null;
+  }
+
+  return walk(result);
+}
+
+async function updateUploadedResumeRateFromScore({ candidateId, postId, fileGridFsId, scoreValue }) {
+  let updatedResume = null;
+
+  const submittedApplication = await SubmittedApplicationModel.findOne({
+    candidate_id: candidateId,
+    post_id: postId
+  })
+    .sort({ createdAt: -1 })
+    .select('resume_id')
+    .lean();
+
+  if (submittedApplication?.resume_id && mongoose.isValidObjectId(submittedApplication.resume_id)) {
+    updatedResume = await UploadedResumeModel.findOneAndUpdate(
+      {
+        _id: submittedApplication.resume_id,
+        candidate_id: candidateId
+      },
+      {
+        $set: {
+          resume_rate: scoreValue
+        }
+      },
+      {
+        new: true
+      }
+    );
+  }
+
+  if (!updatedResume && typeof fileGridFsId === 'string' && fileGridFsId.trim()) {
+    updatedResume = await UploadedResumeModel.findOneAndUpdate(
+      {
+        candidate_id: candidateId,
+        resume_gridfs_id: fileGridFsId.trim()
+      },
+      {
+        $set: {
+          resume_rate: scoreValue
+        }
+      },
+      {
+        new: true,
+        sort: { createdAt: -1 }
+      }
+    );
+  }
+
+  return updatedResume;
+}
+
+async function callScoreResumeApi({ fullInfo, readyFile, filename, contentType }) {
+  const formData = new FormData();
+  formData.append('job_description', fullInfo);
+  formData.append(
+    'file',
+    new Blob([readyFile], { type: contentType || 'application/octet-stream' }),
+    filename || 'resume.bin'
+  );
+
+  const headers = {};
+
+  if (config.agentApiKey) {
+    headers['x-api-key'] = config.agentApiKey;
+    headers['api-key'] = config.agentApiKey;
+    headers.Authorization = `Bearer ${config.agentApiKey}`;
+  }
+
+  const response = await fetch(buildScoreResumeEndpoint(config.agentApiBaseUrl), {
+    method: 'POST',
+    headers,
+    body: formData
+  });
+
+  if (!response.ok) {
+    let responseDetails = '';
+
+    try {
+      responseDetails = await response.text();
+    } catch {
+      responseDetails = '';
+    }
+
+    const error = createClientError('failed to score resume from upstream service', 502);
+    error.details = responseDetails ? responseDetails.slice(0, 500) : undefined;
+    throw error;
+  }
+
+  const contentTypeHeader = response.headers.get('content-type') || '';
+
+  if (contentTypeHeader.includes('application/json')) {
+    return response.json();
+  }
+
+  return response.text();
+}
+
+async function callChatApi({ fullInfo, question }) {
+  const formData = new FormData();
+  formData.append('job_description', fullInfo);
+  formData.append('question', question);
+
+  const headers = {};
+
+  if (config.agentApiKey) {
+    headers['x-api-key'] = config.agentApiKey;
+    headers['api-key'] = config.agentApiKey;
+    headers.Authorization = `Bearer ${config.agentApiKey}`;
+  }
+
+  const response = await fetch(buildChatEndpoint(config.agentApiBaseUrl), {
+    method: 'POST',
+    headers,
+    body: formData
+  });
+
+  if (!response.ok) {
+    throw createClientError('failed to get chat response from upstream service', 502);
+  }
+
+  const contentTypeHeader = response.headers.get('content-type') || '';
+
+  if (contentTypeHeader.includes('application/json')) {
+    return response.json();
+  }
+
+  const textResponse = await response.text();
+  return {
+    response: textResponse
+  };
+}
+
+async function resolveResumeForScoring({ fileId, file, candidate }) {
+  if (file) {
+    validateResumeFile(file);
+
+    const gridFsId = await uploadBufferToGridFs({
+      fileBuffer: file.buffer,
+      filename: file.originalname,
+      contentType: file.mimetype,
+      metadata: {
+        candidate_id: String(candidate._id)
+      }
+    });
+
+    return {
+      fileDoc: {
+        _id: new mongoose.Types.ObjectId(gridFsId),
+        filename: file.originalname,
+        contentType: file.mimetype
+      },
+      readyFile: file.buffer
+    };
+  }
+
+  if (typeof fileId !== 'string' || !fileId.trim()) {
+    throw createClientError('either file or file_id is required.', 400);
+  }
+
+  return getGridFsFileById(fileId.trim());
+}
+
+async function uploadCandidateResume({ accessToken, refreshToken, file, postId = null }) {
   validateResumeFile(file);
   const candidate = await getActiveCandidateSession({ accessToken, refreshToken });
 
@@ -184,6 +468,7 @@ async function uploadCandidateResume({ accessToken, refreshToken, file }) {
   });
 
   const uploadedResume = await UploadedResumeModel.create({
+    post_id: typeof postId === 'string' && postId.trim() ? postId.trim() : null,
     candidate_id: String(candidate._id),
     candidate_name: candidate.name,
     candidate_email: candidate.email,
@@ -219,7 +504,8 @@ async function submitCandidateApplication({ accessToken, refreshToken, postId, f
   const uploadedResume = await uploadCandidateResume({
     accessToken,
     refreshToken,
-    file
+    file,
+    postId: normalizedPostId
   });
 
   await SubmittedApplicationModel.create({
@@ -233,11 +519,92 @@ async function submitCandidateApplication({ accessToken, refreshToken, postId, f
   });
 }
 
+async function scoreCandidateResume({ accessToken, refreshToken, fileId, jobId, file }) {
+  if (typeof jobId !== 'string' || !jobId.trim()) {
+    throw createClientError('job_id is required.', 400);
+  }
+
+  const candidate = await getActiveCandidateSession({ accessToken, refreshToken });
+  ensureCandidateConfirmed(candidate);
+
+  const post = await JobPostModel.findById(jobId.trim()).lean();
+
+  if (!post) {
+    throw createClientError('there is no post with that id', 404);
+  }
+
+  const fullInfo = buildFullInfo(post);
+  const { fileDoc, readyFile } = await resolveResumeForScoring({ fileId, file, candidate });
+  const result = await callScoreResumeApi({
+    fullInfo,
+    readyFile,
+    filename: fileDoc.filename,
+    contentType: fileDoc.contentType
+  });
+
+  const scoreValue = extractNumericScoreValue(result);
+
+  if (scoreValue === null) {
+    throw createClientError('score value is missing in scoring response', 502);
+  }
+
+  await updateUploadedResumeRateFromScore({
+    candidateId: String(candidate._id),
+    postId: String(post._id),
+    fileGridFsId: String(fileDoc._id),
+    scoreValue
+  });
+
+  const scoreDoc = await ScoreModel.create({
+    post_id: String(post._id),
+    candidate_id: String(candidate._id),
+    candidate_name: candidate.name,
+    candidate_email: candidate.email,
+    candidate_is_confirmed: candidate.is_confirmed,
+    file_id: String(fileDoc._id),
+    result
+  });
+
+  return {
+    _id: scoreDoc._id,
+    result: scoreDoc.result
+  };
+}
+
+async function chatCandidate({ accessToken, refreshToken, jobId, question }) {
+  if (typeof jobId !== 'string' || !jobId.trim()) {
+    throw createClientError('job_id is required.', 400);
+  }
+
+  if (typeof question !== 'string' || !question.trim()) {
+    throw createClientError('question is required.', 400);
+  }
+
+  const candidate = await getActiveCandidateSession({ accessToken, refreshToken });
+  ensureCandidateConfirmed(candidate);
+
+  const post = await JobPostModel.findById(jobId.trim()).lean();
+
+  if (!post) {
+    throw createClientError('there is no post with that id', 404);
+  }
+
+  const fullInfo = buildFullInfo(post);
+  const chatResult = await callChatApi({
+    fullInfo,
+    question: question.trim()
+  });
+
+  return chatResult;
+}
+
 module.exports = {
   registerCandidate,
   loginCandidate,
   logoutCandidate,
   getActiveJobPostsForCandidate,
   uploadCandidateResume,
-  submitCandidateApplication
+  submitCandidateApplication,
+  scoreCandidateResume,
+  chatCandidate
 };

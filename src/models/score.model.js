@@ -1,11 +1,11 @@
 const { mongoose } = require('../config/database');
 
-const uploadedResumeSchema = new mongoose.Schema(
+const scoreSchema = new mongoose.Schema(
   {
     post_id: {
       type: String,
-      trim: true,
-      default: null
+      required: true,
+      trim: true
     },
     candidate_id: {
       type: String,
@@ -27,24 +27,23 @@ const uploadedResumeSchema = new mongoose.Schema(
       type: Boolean,
       required: true
     },
-    resume_rate: {
-      type: Number,
-      default: null
-    },
-    resume_gridfs_id: {
+    file_id: {
       type: String,
       required: true,
       trim: true
+    },
+    result: {
+      type: mongoose.Schema.Types.Mixed,
+      required: true
     }
   },
   {
     versionKey: false,
-    collection: 'uploaded_resumes',
+    collection: 'score',
     timestamps: true
   }
 );
 
-const UploadedResumeModel = mongoose.models.UploadedResume
-  || mongoose.model('UploadedResume', uploadedResumeSchema);
+const ScoreModel = mongoose.models.Score || mongoose.model('Score', scoreSchema);
 
-module.exports = UploadedResumeModel;
+module.exports = ScoreModel;

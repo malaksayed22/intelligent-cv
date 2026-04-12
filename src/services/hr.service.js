@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const HrModel = require('../models/hr.model');
+const UploadedResumeModel = require('../models/uploaded-resume.model');
 const config = require('../config/env');
 const { mongoose } = require('../config/database');
 const { sendConfirmationCodeEmail } = require('./email.service');
@@ -189,6 +190,69 @@ async function logoutHr({ accessToken, refreshToken }) {
   );
 }
 
+async function getActiveConfirmedHr({ accessToken, refreshToken }) {
+  const hr = await HrModel.findOne({
+    access_tokens: accessToken,
+    refresh_tokens: refreshToken
+  });
+
+  if (!hr) {
+    throw createClientError('unauth', 401);
+  }
+
+  if (hr.is_confirmed !== true) {
+    throw createClientError('confirmation required', 400);
+  }
+
+  return hr;
+}
+
+function normalizeRankedResume(resume, rank) {
+  return {
+    rank,
+    resume_id: String(resume._id),
+    post_id: resume.post_id || null,
+    resume_rate: Number.isFinite(resume.resume_rate) ? resume.resume_rate : null,
+    candidate: {
+      candidate_id: resume.candidate_id || null,
+      name: resume.candidate_name || null,
+      email: resume.candidate_email || null,
+      is_confirmed: resume.candidate_is_confirmed === true
+    }
+  };
+}
+
+async function rankCandidatesByResumeRate({ accessToken, refreshToken, postId }) {
+  await getActiveConfirmedHr({ accessToken, refreshToken });
+
+  const normalizedPostId = typeof postId === 'string' ? postId.trim() : '';
+
+  if (!normalizedPostId) {
+    throw createClientError('post_id is required.', 400);
+  }
+
+  const resumes = await UploadedResumeModel.find({
+    post_id: normalizedPostId
+  }).lean();
+
+  if (!Array.isArray(resumes) || resumes.length === 0) {
+    return [];
+  }
+
+  resumes.sort((a, b) => {
+    const aRate = Number.isFinite(a.resume_rate) ? a.resume_rate : Number.NEGATIVE_INFINITY;
+    const bRate = Number.isFinite(b.resume_rate) ? b.resume_rate : Number.NEGATIVE_INFINITY;
+
+    if (bRate !== aRate) {
+      return bRate - aRate;
+    }
+
+    return String(a._id).localeCompare(String(b._id));
+  });
+
+  return resumes.map((resume, index) => normalizeRankedResume(resume, index + 1));
+}
+
 async function sendEmailConfirmationCode({ accessToken, refreshToken }) {
   const principal = await findActivePrincipal(accessToken, refreshToken);
 
@@ -238,6 +302,7 @@ module.exports = {
   registerHr,
   loginHr,
   logoutHr,
+  rankCandidatesByResumeRate,
   sendEmailConfirmationCode,
   verifyEmailConfirmationCode
 };

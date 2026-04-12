@@ -2,7 +2,8 @@ const { success, error: errorResponse } = require('../utils/api-response');
 const {
   registerHr,
   loginHr,
-  logoutHr
+  logoutHr,
+  rankCandidatesByResumeRate
 } = require('../services/hr.service');
 const {
   addJobPost,
@@ -266,6 +267,33 @@ async function deletePost(req, res, next) {
   }
 }
 
+async function rankCandidates(req, res, next) {
+  try {
+    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
+    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+
+    if (!accessToken || !refreshToken) {
+      const error = new Error('unauth');
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const rankedCandidates = await rankCandidatesByResumeRate({
+      accessToken,
+      refreshToken,
+      postId: req.query?.post_id || req.body?.post_id
+    });
+
+    return res.status(200).json(success(rankedCandidates, 'ranked candidates retrieved successfully'));
+  } catch (error) {
+    if (!error.statusCode) {
+      return res.status(500).json(errorResponse('something wrong happened while ranking candidates'));
+    }
+
+    return next(error);
+  }
+}
+
 module.exports = {
   registration,
   login,
@@ -273,5 +301,6 @@ module.exports = {
   addPost,
   getPosts,
   updatePost,
-  deletePost
+  deletePost,
+  rankCandidates
 };

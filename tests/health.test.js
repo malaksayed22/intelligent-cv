@@ -104,6 +104,16 @@ describe('Health API', () => {
 		expect(response.body.message).toBe('unauth');
 	});
 
+	it('returns unauth when rank-candidates cookies are missing', async () => {
+		const response = await request(app)
+			.get('/hr/rank-candidates')
+			.query({ post_id: '680000000000000000000000' });
+
+		expect(response.statusCode).toBe(401);
+		expect(response.body.success).toBe(false);
+		expect(response.body.message).toBe('unauth');
+	});
+
 	it('rejects raw JSON payload for update-post endpoint', async () => {
 		const response = await request(app)
 			.put('/hr/update-post')
@@ -294,6 +304,48 @@ describe('Health API', () => {
 			.type('form')
 			.field('post_id', '680000000000000000000000')
 			.attach('file', Buffer.from('sample resume'), 'resume.txt');
+
+		expect(response.statusCode).toBe(401);
+		expect(response.body.success).toBe(false);
+		expect(response.body.message).toBe('unauth');
+	});
+
+	it('rejects raw JSON payload for candidate score-resume endpoint', async () => {
+		const response = await request(app)
+			.post('/candidate/score-resume')
+			.set('Content-Type', 'application/json')
+			.send({ file_id: '680000000000000000000000', job_id: '680000000000000000000001' });
+
+		expect(response.statusCode).toBe(415);
+		expect(response.body.success).toBe(false);
+	});
+
+	it('returns unauth when candidate score-resume cookies are missing', async () => {
+		const response = await request(app)
+			.post('/candidate/score-resume')
+			.type('form')
+			.send({ file_id: '680000000000000000000000', job_id: '680000000000000000000001' });
+
+		expect(response.statusCode).toBe(401);
+		expect(response.body.success).toBe(false);
+		expect(response.body.message).toBe('unauth');
+	});
+
+	it('rejects raw JSON payload for candidate chat endpoint', async () => {
+		const response = await request(app)
+			.post('/candidate/chat')
+			.set('Content-Type', 'application/json')
+			.send({ question: 'What are the key requirements?', job_id: '680000000000000000000001' });
+
+		expect(response.statusCode).toBe(415);
+		expect(response.body.success).toBe(false);
+	});
+
+	it('returns unauth when candidate chat cookies are missing', async () => {
+		const response = await request(app)
+			.post('/candidate/chat')
+			.type('form')
+			.send({ question: 'What are the key requirements?', job_id: '680000000000000000000001' });
 
 		expect(response.statusCode).toBe(401);
 		expect(response.body.success).toBe(false);

@@ -8,7 +8,8 @@ const {
 	addPost,
 	getPosts,
 	updatePost,
-	deletePost
+	deletePost,
+	rankCandidates
 } = require('../controllers/hr.controller');
 
 const hrRouter = Router();
@@ -39,6 +40,7 @@ hrRouter.post('/login', requireJsonContentType, express.json({ limit: '32kb' }),
 hrRouter.post('/logout', logout);
 hrRouter.post('/add-post', requireFormContentType, formDataParser.none(), addPost);
 hrRouter.get('/get-posts', getPosts);
+hrRouter.get('/rank-candidates', rankCandidates);
 hrRouter.put('/update-post', requireFormContentType, formDataParser.none(), updatePost);
 hrRouter.delete('/delete-post', requireFormContentType, formDataParser.none(), deletePost);
 
