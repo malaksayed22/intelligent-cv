@@ -7,7 +7,8 @@ const {
   logout,
   getPosts,
   uploadResume,
-  submitApplication
+  submitApplication,
+  scoreResume
 } = require('../controllers/candidate.controller');
 
 const candidateRouter = Router();
@@ -45,5 +46,6 @@ candidateRouter.post('/logout', logout);
 candidateRouter.get('/get-posts', getPosts);
 candidateRouter.post('/upload-resume', requireFormContentType, resumeUploadParser.single('file'), uploadResume);
 candidateRouter.post('/submit-application', requireFormContentType, resumeUploadParser.single('file'), submitApplication);
+candidateRouter.post('/score-resume', requireFormContentType, formDataParser.none(), scoreResume);
 
 module.exports = candidateRouter;

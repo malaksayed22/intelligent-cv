@@ -34,7 +34,9 @@ const config = {
 	smtpUser: process.env.SMTP_USER || '',
 	smtpPass: process.env.SMTP_PASS || '',
 	smtpFrom: process.env.SMTP_FROM || '',
-	smtpSecure: String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true'
+	smtpSecure: String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
+	agentApiBaseUrl: process.env.AGENT_API_BASE_URL || 'http://localhost:8000',
+	agentApiKey: process.env.SMARTHIRE_API_KEY || process.env.AGENT_API_KEY || ''
 };
 
 module.exports = config;

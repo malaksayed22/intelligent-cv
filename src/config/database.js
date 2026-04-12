@@ -5,7 +5,8 @@ const REQUIRED_COLLECTIONS = [
   'candidates',
   'job_posts',
   'submitted_applications',
-  'uploaded_resumes'
+  'uploaded_resumes',
+  'score'
 ];
 
 async function connectToDatabase(mongoUri) {

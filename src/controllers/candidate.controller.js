@@ -5,7 +5,8 @@ const {
   logoutCandidate,
   getActiveJobPostsForCandidate,
   uploadCandidateResume,
-  submitCandidateApplication
+  submitCandidateApplication,
+  scoreCandidateResume
 } = require('../services/candidate.service');
 
 function parseBooleanLike(value, fallback = false) {
@@ -245,11 +246,43 @@ async function submitApplication(req, res, next) {
   }
 }
 
+async function scoreResume(req, res, next) {
+  try {
+    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
+    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+
+    if (!accessToken || !refreshToken) {
+      const error = new Error('unauth');
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const scored = await scoreCandidateResume({
+      accessToken,
+      refreshToken,
+      fileId: req.body?.file_id,
+      jobId: req.body?.job_id
+    });
+
+    return res.status(200).json(success(scored, 'resume scored successfully'));
+  } catch (error) {
+    if (!error.statusCode) {
+      return res.status(500).json({
+        success: false,
+        message: 'something wrong happened, please try again'
+      });
+    }
+
+    return next(error);
+  }
+}
+
 module.exports = {
   registration,
   login,
   logout,
   getPosts,
   uploadResume,
-  submitApplication
+  submitApplication,
+  scoreResume
 };

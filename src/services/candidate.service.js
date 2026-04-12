@@ -7,6 +7,7 @@ const CandidateModel = require('../models/candidate.model');
 const JobPostModel = require('../models/job-post.model');
 const UploadedResumeModel = require('../models/uploaded-resume.model');
 const SubmittedApplicationModel = require('../models/submitted-application.model');
+const ScoreModel = require('../models/score.model');
 const config = require('../config/env');
 const { mongoose } = require('../config/database');
 
@@ -170,6 +171,88 @@ function uploadBufferToGridFs({ fileBuffer, filename, contentType, metadata }) {
   });
 }
 
+function streamToBuffer(stream) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+
+    stream.on('data', (chunk) => chunks.push(chunk));
+    stream.once('end', () => resolve(Buffer.concat(chunks)));
+    stream.once('error', reject);
+  });
+}
+
+async function getGridFsFileById(fileId) {
+  if (!mongoose.isValidObjectId(fileId)) {
+    throw createClientError('no file with that id', 404);
+  }
+
+  const objectId = new mongoose.Types.ObjectId(fileId);
+  const fileDoc = await mongoose.connection.db.collection('fs.files').findOne({ _id: objectId });
+
+  if (!fileDoc) {
+    throw createClientError('no file with that id', 404);
+  }
+
+  const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
+    bucketName: 'fs'
+  });
+
+  const readyFile = await streamToBuffer(bucket.openDownloadStream(objectId));
+
+  return {
+    fileDoc,
+    readyFile
+  };
+}
+
+function buildFullInfo(job) {
+  const requirements = Array.isArray(job.requirements) ? job.requirements.join('|') : '';
+  const skills = Array.isArray(job.skills) ? job.skills.join('|') : '';
+
+  return `title:${job.title || ''},description:${job.description || ''},requirements:${requirements},employment_type:${job.employment_type || ''},work_mode:${job.work_mode || ''},skills:${skills}`;
+}
+
+function buildScoreResumeEndpoint(baseUrl) {
+  const normalizedBase = String(baseUrl || '').trim().replace(/\/+$/, '');
+  return `${normalizedBase}/score-resume`;
+}
+
+async function callScoreResumeApi({ fullInfo, readyFile, filename, contentType }) {
+  const formData = new FormData();
+  formData.append('fullInfo', fullInfo);
+  formData.append(
+    'file',
+    new Blob([readyFile], { type: contentType || 'application/octet-stream' }),
+    filename || 'resume.bin'
+  );
+
+  const headers = {};
+
+  if (config.agentApiKey) {
+    headers['x-api-key'] = config.agentApiKey;
+    headers['api-key'] = config.agentApiKey;
+    headers.Authorization = `Bearer ${config.agentApiKey}`;
+  }
+
+  const response = await fetch(buildScoreResumeEndpoint(config.agentApiBaseUrl), {
+    method: 'POST',
+    headers,
+    body: formData
+  });
+
+  if (!response.ok) {
+    throw new Error('score api request failed');
+  }
+
+  const contentTypeHeader = response.headers.get('content-type') || '';
+
+  if (contentTypeHeader.includes('application/json')) {
+    return response.json();
+  }
+
+  return response.text();
+}
+
 async function uploadCandidateResume({ accessToken, refreshToken, file }) {
   validateResumeFile(file);
   const candidate = await getActiveCandidateSession({ accessToken, refreshToken });
@@ -233,11 +316,55 @@ async function submitCandidateApplication({ accessToken, refreshToken, postId, f
   });
 }
 
+async function scoreCandidateResume({ accessToken, refreshToken, fileId, jobId }) {
+  if (typeof fileId !== 'string' || !fileId.trim()) {
+    throw createClientError('file_id is required.', 400);
+  }
+
+  if (typeof jobId !== 'string' || !jobId.trim()) {
+    throw createClientError('job_id is required.', 400);
+  }
+
+  const candidate = await getActiveCandidateSession({ accessToken, refreshToken });
+  ensureCandidateConfirmed(candidate);
+
+  const post = await JobPostModel.findById(jobId.trim()).lean();
+
+  if (!post) {
+    throw createClientError('there is no post with that id', 404);
+  }
+
+  const fullInfo = buildFullInfo(post);
+  const { fileDoc, readyFile } = await getGridFsFileById(fileId.trim());
+  const result = await callScoreResumeApi({
+    fullInfo,
+    readyFile,
+    filename: fileDoc.filename,
+    contentType: fileDoc.contentType
+  });
+
+  const scoreDoc = await ScoreModel.create({
+    post_id: String(post._id),
+    candidate_id: String(candidate._id),
+    candidate_name: candidate.name,
+    candidate_email: candidate.email,
+    candidate_is_confirmed: candidate.is_confirmed,
+    file_id: String(fileDoc._id),
+    result
+  });
+
+  return {
+    _id: scoreDoc._id,
+    result: scoreDoc.result
+  };
+}
+
 module.exports = {
   registerCandidate,
   loginCandidate,
   logoutCandidate,
   getActiveJobPostsForCandidate,
   uploadCandidateResume,
-  submitCandidateApplication
+  submitCandidateApplication,
+  scoreCandidateResume
 };
