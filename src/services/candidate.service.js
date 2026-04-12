@@ -454,7 +454,7 @@ async function resolveResumeForScoring({ fileId, file, candidate }) {
   return getGridFsFileById(fileId.trim());
 }
 
-async function uploadCandidateResume({ accessToken, refreshToken, file }) {
+async function uploadCandidateResume({ accessToken, refreshToken, file, postId = null }) {
   validateResumeFile(file);
   const candidate = await getActiveCandidateSession({ accessToken, refreshToken });
 
@@ -468,6 +468,7 @@ async function uploadCandidateResume({ accessToken, refreshToken, file }) {
   });
 
   const uploadedResume = await UploadedResumeModel.create({
+    post_id: typeof postId === 'string' && postId.trim() ? postId.trim() : null,
     candidate_id: String(candidate._id),
     candidate_name: candidate.name,
     candidate_email: candidate.email,
@@ -503,7 +504,8 @@ async function submitCandidateApplication({ accessToken, refreshToken, postId, f
   const uploadedResume = await uploadCandidateResume({
     accessToken,
     refreshToken,
-    file
+    file,
+    postId: normalizedPostId
   });
 
   await SubmittedApplicationModel.create({

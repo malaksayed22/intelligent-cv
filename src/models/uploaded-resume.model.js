@@ -2,6 +2,11 @@ const { mongoose } = require('../config/database');
 
 const uploadedResumeSchema = new mongoose.Schema(
   {
+    post_id: {
+      type: String,
+      trim: true,
+      default: null
+    },
     candidate_id: {
       type: String,
       required: true,
