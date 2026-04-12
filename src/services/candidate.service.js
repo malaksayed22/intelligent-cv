@@ -217,6 +217,127 @@ function buildScoreResumeEndpoint(baseUrl) {
   return `${normalizedBase}/score-resume`;
 }
 
+function extractNumericScoreValue(result) {
+  const candidateKeys = new Set([
+    'score',
+    'resume_score',
+    'total_score',
+    'match_score',
+    'rating'
+  ]);
+
+  function normalizeNumber(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.trunc(value);
+    }
+
+    if (typeof value === 'string') {
+      const parsed = Number.parseFloat(value.trim());
+
+      if (Number.isFinite(parsed)) {
+        return Math.trunc(parsed);
+      }
+    }
+
+    return null;
+  }
+
+  function walk(node) {
+    const direct = normalizeNumber(node);
+
+    if (direct !== null) {
+      return direct;
+    }
+
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        const fromItem = walk(item);
+
+        if (fromItem !== null) {
+          return fromItem;
+        }
+      }
+
+      return null;
+    }
+
+    if (!node || typeof node !== 'object') {
+      return null;
+    }
+
+    for (const [key, value] of Object.entries(node)) {
+      if (candidateKeys.has(String(key).toLowerCase())) {
+        const fromKnownKey = normalizeNumber(value);
+
+        if (fromKnownKey !== null) {
+          return fromKnownKey;
+        }
+      }
+    }
+
+    for (const value of Object.values(node)) {
+      const nested = walk(value);
+
+      if (nested !== null) {
+        return nested;
+      }
+    }
+
+    return null;
+  }
+
+  return walk(result);
+}
+
+async function updateUploadedResumeRateFromScore({ candidateId, postId, fileGridFsId, scoreValue }) {
+  let updatedResume = null;
+
+  const submittedApplication = await SubmittedApplicationModel.findOne({
+    candidate_id: candidateId,
+    post_id: postId
+  })
+    .sort({ createdAt: -1 })
+    .select('resume_id')
+    .lean();
+
+  if (submittedApplication?.resume_id && mongoose.isValidObjectId(submittedApplication.resume_id)) {
+    updatedResume = await UploadedResumeModel.findOneAndUpdate(
+      {
+        _id: submittedApplication.resume_id,
+        candidate_id: candidateId
+      },
+      {
+        $set: {
+          resume_rate: scoreValue
+        }
+      },
+      {
+        new: true
+      }
+    );
+  }
+
+  if (!updatedResume && typeof fileGridFsId === 'string' && fileGridFsId.trim()) {
+    updatedResume = await UploadedResumeModel.findOneAndUpdate(
+      {
+        candidate_id: candidateId,
+        resume_gridfs_id: fileGridFsId.trim()
+      },
+      {
+        $set: {
+          resume_rate: scoreValue
+        }
+      },
+      {
+        new: true,
+        sort: { createdAt: -1 }
+      }
+    );
+  }
+
+  return updatedResume;
+}
+
 async function callScoreResumeApi({ fullInfo, readyFile, filename, contentType }) {
   const formData = new FormData();
   formData.append('job_description', fullInfo);
@@ -377,6 +498,19 @@ async function scoreCandidateResume({ accessToken, refreshToken, fileId, jobId, 
     readyFile,
     filename: fileDoc.filename,
     contentType: fileDoc.contentType
+  });
+
+  const scoreValue = extractNumericScoreValue(result);
+
+  if (scoreValue === null) {
+    throw createClientError('score value is missing in scoring response', 502);
+  }
+
+  await updateUploadedResumeRateFromScore({
+    candidateId: String(candidate._id),
+    postId: String(post._id),
+    fileGridFsId: String(fileDoc._id),
+    scoreValue
   });
 
   const scoreDoc = await ScoreModel.create({
