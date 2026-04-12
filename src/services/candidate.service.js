@@ -217,6 +217,11 @@ function buildScoreResumeEndpoint(baseUrl) {
   return `${normalizedBase}/score-resume`;
 }
 
+function buildChatEndpoint(baseUrl) {
+  const normalizedBase = String(baseUrl || '').trim().replace(/\/+$/, '');
+  return `${normalizedBase}/chat`;
+}
+
 function extractNumericScoreValue(result) {
   const candidateKeys = new Set([
     'score',
@@ -384,6 +389,41 @@ async function callScoreResumeApi({ fullInfo, readyFile, filename, contentType }
   return response.text();
 }
 
+async function callChatApi({ fullInfo, question }) {
+  const formData = new FormData();
+  formData.append('job_description', fullInfo);
+  formData.append('question', question);
+
+  const headers = {};
+
+  if (config.agentApiKey) {
+    headers['x-api-key'] = config.agentApiKey;
+    headers['api-key'] = config.agentApiKey;
+    headers.Authorization = `Bearer ${config.agentApiKey}`;
+  }
+
+  const response = await fetch(buildChatEndpoint(config.agentApiBaseUrl), {
+    method: 'POST',
+    headers,
+    body: formData
+  });
+
+  if (!response.ok) {
+    throw createClientError('failed to get chat response from upstream service', 502);
+  }
+
+  const contentTypeHeader = response.headers.get('content-type') || '';
+
+  if (contentTypeHeader.includes('application/json')) {
+    return response.json();
+  }
+
+  const textResponse = await response.text();
+  return {
+    response: textResponse
+  };
+}
+
 async function resolveResumeForScoring({ fileId, file, candidate }) {
   if (file) {
     validateResumeFile(file);
@@ -529,6 +569,33 @@ async function scoreCandidateResume({ accessToken, refreshToken, fileId, jobId, 
   };
 }
 
+async function chatCandidate({ accessToken, refreshToken, jobId, question }) {
+  if (typeof jobId !== 'string' || !jobId.trim()) {
+    throw createClientError('job_id is required.', 400);
+  }
+
+  if (typeof question !== 'string' || !question.trim()) {
+    throw createClientError('question is required.', 400);
+  }
+
+  const candidate = await getActiveCandidateSession({ accessToken, refreshToken });
+  ensureCandidateConfirmed(candidate);
+
+  const post = await JobPostModel.findById(jobId.trim()).lean();
+
+  if (!post) {
+    throw createClientError('there is no post with that id', 404);
+  }
+
+  const fullInfo = buildFullInfo(post);
+  const chatResult = await callChatApi({
+    fullInfo,
+    question: question.trim()
+  });
+
+  return chatResult;
+}
+
 module.exports = {
   registerCandidate,
   loginCandidate,
@@ -536,5 +603,6 @@ module.exports = {
   getActiveJobPostsForCandidate,
   uploadCandidateResume,
   submitCandidateApplication,
-  scoreCandidateResume
+  scoreCandidateResume,
+  chatCandidate
 };

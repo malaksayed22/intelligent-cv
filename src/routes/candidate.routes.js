@@ -8,7 +8,8 @@ const {
   getPosts,
   uploadResume,
   submitApplication,
-  scoreResume
+  scoreResume,
+  chat
 } = require('../controllers/candidate.controller');
 
 const candidateRouter = Router();
@@ -47,5 +48,6 @@ candidateRouter.get('/get-posts', getPosts);
 candidateRouter.post('/upload-resume', requireFormContentType, resumeUploadParser.single('file'), uploadResume);
 candidateRouter.post('/submit-application', requireFormContentType, resumeUploadParser.single('file'), submitApplication);
 candidateRouter.post('/score-resume', requireFormContentType, resumeUploadParser.single('file'), scoreResume);
+candidateRouter.post('/chat', requireFormContentType, formDataParser.none(), chat);
 
 module.exports = candidateRouter;

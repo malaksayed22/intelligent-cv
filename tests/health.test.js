@@ -320,4 +320,25 @@ describe('Health API', () => {
 		expect(response.body.success).toBe(false);
 		expect(response.body.message).toBe('unauth');
 	});
+
+	it('rejects raw JSON payload for candidate chat endpoint', async () => {
+		const response = await request(app)
+			.post('/candidate/chat')
+			.set('Content-Type', 'application/json')
+			.send({ question: 'What are the key requirements?', job_id: '680000000000000000000001' });
+
+		expect(response.statusCode).toBe(415);
+		expect(response.body.success).toBe(false);
+	});
+
+	it('returns unauth when candidate chat cookies are missing', async () => {
+		const response = await request(app)
+			.post('/candidate/chat')
+			.type('form')
+			.send({ question: 'What are the key requirements?', job_id: '680000000000000000000001' });
+
+		expect(response.statusCode).toBe(401);
+		expect(response.body.success).toBe(false);
+		expect(response.body.message).toBe('unauth');
+	});
 });
