@@ -115,13 +115,13 @@ async function login(req, res, next) {
     res.cookie('access_tokens', session.accessToken, {
       httpOnly: true,
       secure: true,
-      sameSite: 'strict'
+      sameSite: 'none'
     });
 
     res.cookie('refresh_tokens', session.refreshToken, {
       httpOnly: true,
       secure: true,
-      sameSite: 'strict'
+      sameSite: 'none'
     });
 
     return res.status(200).json(success(session.candidate, session.message));
@@ -150,7 +150,7 @@ async function logout(req, res, next) {
     const cookieOptions = {
       httpOnly: true,
       secure: true,
-      sameSite: 'strict'
+      sameSite: 'none'
     };
 
     res.clearCookie('access_tokens', cookieOptions);
