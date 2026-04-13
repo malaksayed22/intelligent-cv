@@ -598,6 +598,49 @@ async function chatCandidate({ accessToken, refreshToken, jobId, question }) {
   return chatResult;
 }
 
+async function getMyCandidateApplications({ accessToken, refreshToken }) {
+  const candidate = await getActiveCandidateSession({ accessToken, refreshToken });
+  const candidateId = String(candidate._id);
+
+  const applications = await SubmittedApplicationModel.find({ candidate_id: candidateId })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const results = await Promise.all(
+    applications.map(async (app) => {
+      const post = await JobPostModel.findById(app.post_id).lean();
+      const scoreDoc = await ScoreModel.findOne({
+        candidate_id: candidateId,
+        post_id: String(app.post_id)
+      })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      const raw = scoreDoc?.result ?? {};
+      const score = raw.score ?? raw.match_score ?? raw.resume_score ?? raw.total_score ?? raw.rating ?? 0;
+      const summary = raw.summary ?? raw.feedback ?? raw.analysis ?? '';
+      const strengths = raw.strengths ?? raw.pros ?? [];
+      const weaknesses = raw.weaknesses ?? raw.cons ?? raw.improvements ?? [];
+
+      return {
+        _id: String(app._id),
+        post_id: String(app.post_id),
+        appliedRole: post?.title ?? '',
+        location: post?.work_mode ?? '',
+        appliedDate: app.createdAt ? String(app.createdAt) : '',
+        status: app.statue ?? 'pending',
+        score: typeof score === 'number' ? score : Number(score) || 0,
+        summary,
+        strengths: Array.isArray(strengths) ? strengths : [],
+        weaknesses: Array.isArray(weaknesses) ? weaknesses : [],
+        emails: []
+      };
+    })
+  );
+
+  return results;
+}
+
 module.exports = {
   registerCandidate,
   loginCandidate,
@@ -606,5 +649,6 @@ module.exports = {
   uploadCandidateResume,
   submitCandidateApplication,
   scoreCandidateResume,
-  chatCandidate
+  chatCandidate,
+  getMyCandidateApplications
 };

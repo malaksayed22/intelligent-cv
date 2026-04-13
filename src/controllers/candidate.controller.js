@@ -7,7 +7,8 @@ const {
   uploadCandidateResume,
   submitCandidateApplication,
   scoreCandidateResume,
-  chatCandidate
+  chatCandidate,
+  getMyCandidateApplications
 } = require('../services/candidate.service');
 
 function parseBooleanLike(value, fallback = false) {
@@ -310,6 +311,24 @@ async function chat(req, res, next) {
   }
 }
 
+async function getMyApplications(req, res, next) {
+  try {
+    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
+    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+
+    if (!accessToken || !refreshToken) {
+      const error = new Error('unauth');
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const applications = await getMyCandidateApplications({ accessToken, refreshToken });
+    return res.status(200).json(success(applications, 'applications retrieved successfully'));
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   registration,
   login,
@@ -318,5 +337,6 @@ module.exports = {
   uploadResume,
   submitApplication,
   scoreResume,
-  chat
+  chat,
+  getMyApplications
 };
