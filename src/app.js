@@ -30,9 +30,9 @@ const corsOptions = {
 		return callback(new Error('Origin not allowed by CORS'));
 	},
 	credentials: true,
-	methods: '*',
-	allowedHeaders: '*',
-	exposedHeaders: '*'
+	methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+	allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+	exposedHeaders: ['Set-Cookie']
 };
 
 app.disable('x-powered-by');
