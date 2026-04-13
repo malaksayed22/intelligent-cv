@@ -41,6 +41,8 @@ app.options('*', cors(corsOptions));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+app.get('/health', (_req, res) => res.status(200).json({ status: 'ok' }));
+
 app.use('/', routes);
 
 app.use(notFound);
