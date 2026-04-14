@@ -1,4 +1,4 @@
-const { success } = require('../utils/api-response');
+const { success } = require("../utils/api-response");
 const {
   registerCandidate,
   loginCandidate,
@@ -8,22 +8,22 @@ const {
   submitCandidateApplication,
   scoreCandidateResume,
   chatCandidate,
-  getMyCandidateApplications
-} = require('../services/candidate.service');
+  getMyCandidateApplications,
+} = require("../services/candidate.service");
 
 function parseBooleanLike(value, fallback = false) {
-  if (typeof value === 'boolean') {
+  if (typeof value === "boolean") {
     return value;
   }
 
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     const normalized = value.trim().toLowerCase();
 
-    if (normalized === 'true') {
+    if (normalized === "true") {
       return true;
     }
 
-    if (normalized === 'false') {
+    if (normalized === "false") {
       return false;
     }
   }
@@ -32,32 +32,34 @@ function parseBooleanLike(value, fallback = false) {
 }
 
 function normalizeRegistrationPayload(body = {}) {
-  const normalizedPhone = typeof body.phone === 'string' ? body.phone.trim() : '';
+  const normalizedPhone =
+    typeof body.phone === "string" ? body.phone.trim() : "";
 
   return {
-    name: typeof body.name === 'string' ? body.name.trim() : '',
+    name: typeof body.name === "string" ? body.name.trim() : "",
     phone: normalizedPhone || undefined,
-    email: typeof body.email === 'string' ? body.email.trim().toLowerCase() : '',
-    password: typeof body.password === 'string' ? body.password : '',
-    is_confirmed: parseBooleanLike(body.is_confirmed, false)
+    email:
+      typeof body.email === "string" ? body.email.trim().toLowerCase() : "",
+    password: typeof body.password === "string" ? body.password : "",
+    is_confirmed: parseBooleanLike(body.is_confirmed, false),
   };
 }
 
 function validateRegistrationPayload(payload) {
   if (!payload.name) {
-    return 'name is required.';
+    return "name is required.";
   }
 
   if (!payload.email) {
-    return 'email is required.';
+    return "email is required.";
   }
 
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
-    return 'email format is invalid.';
+    return "email format is invalid.";
   }
 
   if (!payload.password || payload.password.length < 8) {
-    return 'password must be at least 8 characters.';
+    return "password must be at least 8 characters.";
   }
 
   return null;
@@ -75,7 +77,9 @@ async function registration(req, res, next) {
     }
 
     const candidate = await registerCandidate(payload);
-    return res.status(201).json(success(candidate, 'Candidate registered successfully'));
+    return res
+      .status(201)
+      .json(success(candidate, "Candidate registered successfully"));
   } catch (error) {
     return next(error);
   }
@@ -83,18 +87,19 @@ async function registration(req, res, next) {
 
 function normalizeLoginPayload(body = {}) {
   return {
-    email: typeof body.email === 'string' ? body.email.trim().toLowerCase() : '',
-    password: typeof body.password === 'string' ? body.password : ''
+    email:
+      typeof body.email === "string" ? body.email.trim().toLowerCase() : "",
+    password: typeof body.password === "string" ? body.password : "",
   };
 }
 
 function validateLoginPayload(payload) {
   if (!payload.email) {
-    return 'email is required.';
+    return "email is required.";
   }
 
   if (!payload.password) {
-    return 'password is required.';
+    return "password is required.";
   }
 
   return null;
@@ -113,16 +118,16 @@ async function login(req, res, next) {
 
     const session = await loginCandidate(payload);
 
-    res.cookie('access_tokens', session.accessToken, {
+    res.cookie("access_tokens", session.accessToken, {
       httpOnly: true,
       secure: true,
-      sameSite: 'none'
+      sameSite: "none",
     });
 
-    res.cookie('refresh_tokens', session.refreshToken, {
+    res.cookie("refresh_tokens", session.refreshToken, {
       httpOnly: true,
       secure: true,
-      sameSite: 'none'
+      sameSite: "none",
     });
 
     return res.status(200).json(success(session.candidate, session.message));
@@ -137,11 +142,11 @@ function getCookieToken(req, pluralName, singularName) {
 
 async function logout(req, res, next) {
   try {
-    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
-    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+    const accessToken = getCookieToken(req, "access_tokens", "access_token");
+    const refreshToken = getCookieToken(req, "refresh_tokens", "refresh_token");
 
     if (!accessToken || !refreshToken) {
-      const error = new Error('no active sessions');
+      const error = new Error("no active sessions");
       error.statusCode = 400;
       throw error;
     }
@@ -151,15 +156,15 @@ async function logout(req, res, next) {
     const cookieOptions = {
       httpOnly: true,
       secure: true,
-      sameSite: 'none'
+      sameSite: "none",
     };
 
-    res.clearCookie('access_tokens', cookieOptions);
-    res.clearCookie('refresh_tokens', cookieOptions);
-    res.clearCookie('access_token', cookieOptions);
-    res.clearCookie('refresh_token', cookieOptions);
+    res.clearCookie("access_tokens", cookieOptions);
+    res.clearCookie("refresh_tokens", cookieOptions);
+    res.clearCookie("access_token", cookieOptions);
+    res.clearCookie("refresh_token", cookieOptions);
 
-    return res.status(200).json(success(null, 'successfully logged out'));
+    return res.status(200).json(success(null, "successfully logged out"));
   } catch (error) {
     return next(error);
   }
@@ -167,33 +172,40 @@ async function logout(req, res, next) {
 
 async function getPosts(req, res, next) {
   try {
-    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
-    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+    const accessToken = getCookieToken(req, "access_tokens", "access_token");
+    const refreshToken = getCookieToken(req, "refresh_tokens", "refresh_token");
 
     if (!accessToken || !refreshToken) {
-      const error = new Error('unauth');
+      const error = new Error("unauth");
       error.statusCode = 401;
       throw error;
     }
 
-    const posts = await getActiveJobPostsForCandidate({ accessToken, refreshToken });
-    return res.status(200).json(success(posts, 'active job posts retrieved successfully'));
+    const posts = await getActiveJobPostsForCandidate({
+      accessToken,
+      refreshToken,
+    });
+    return res
+      .status(200)
+      .json(success(posts, "active job posts retrieved successfully"));
   } catch (error) {
     if (error.statusCode === 401) {
       return next(error);
     }
 
-    return res.status(200).json(success([], 'active job posts retrieved successfully'));
+    return res
+      .status(200)
+      .json(success([], "active job posts retrieved successfully"));
   }
 }
 
 async function uploadResume(req, res, next) {
   try {
-    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
-    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+    const accessToken = getCookieToken(req, "access_tokens", "access_token");
+    const refreshToken = getCookieToken(req, "refresh_tokens", "refresh_token");
 
     if (!accessToken || !refreshToken) {
-      const error = new Error('unauth');
+      const error = new Error("unauth");
       error.statusCode = 401;
       throw error;
     }
@@ -201,15 +213,17 @@ async function uploadResume(req, res, next) {
     await uploadCandidateResume({
       accessToken,
       refreshToken,
-      file: req.file
+      file: req.file,
     });
 
-    return res.status(200).json(success(null, 'we received the cv successfully'));
+    return res
+      .status(200)
+      .json(success(null, "we received the cv successfully"));
   } catch (error) {
     if (!error.statusCode) {
       return res.status(500).json({
         success: false,
-        message: 'something wrong happened, please try again'
+        message: "something wrong happened, please try again",
       });
     }
 
@@ -219,11 +233,11 @@ async function uploadResume(req, res, next) {
 
 async function submitApplication(req, res, next) {
   try {
-    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
-    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+    const accessToken = getCookieToken(req, "access_tokens", "access_token");
+    const refreshToken = getCookieToken(req, "refresh_tokens", "refresh_token");
 
     if (!accessToken || !refreshToken) {
-      const error = new Error('unauth');
+      const error = new Error("unauth");
       error.statusCode = 401;
       throw error;
     }
@@ -232,15 +246,15 @@ async function submitApplication(req, res, next) {
       accessToken,
       refreshToken,
       postId: req.body?.post_id,
-      file: req.file
+      file: req.file,
     });
 
-    return res.status(200).json(success(null, 'we received your application'));
+    return res.status(200).json(success(null, "we received your application"));
   } catch (error) {
     if (!error.statusCode) {
       return res.status(500).json({
         success: false,
-        message: 'something wrong happened, please try again'
+        message: "something wrong happened, please try again",
       });
     }
 
@@ -250,11 +264,11 @@ async function submitApplication(req, res, next) {
 
 async function scoreResume(req, res, next) {
   try {
-    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
-    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+    const accessToken = getCookieToken(req, "access_tokens", "access_token");
+    const refreshToken = getCookieToken(req, "refresh_tokens", "refresh_token");
 
     if (!accessToken || !refreshToken) {
-      const error = new Error('unauth');
+      const error = new Error("unauth");
       error.statusCode = 401;
       throw error;
     }
@@ -264,15 +278,15 @@ async function scoreResume(req, res, next) {
       refreshToken,
       fileId: req.body?.file_id,
       jobId: req.body?.job_id,
-      file: req.file
+      file: req.file,
     });
 
-    return res.status(200).json(success(scored, 'resume scored successfully'));
+    return res.status(200).json(success(scored, "resume scored successfully"));
   } catch (error) {
     if (!error.statusCode) {
       return res.status(500).json({
         success: false,
-        message: 'something wrong happened, please try again'
+        message: "something wrong happened, please try again",
       });
     }
 
@@ -282,11 +296,11 @@ async function scoreResume(req, res, next) {
 
 async function chat(req, res, next) {
   try {
-    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
-    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+    const accessToken = getCookieToken(req, "access_tokens", "access_token");
+    const refreshToken = getCookieToken(req, "refresh_tokens", "refresh_token");
 
     if (!accessToken || !refreshToken) {
-      const error = new Error('unauth');
+      const error = new Error("unauth");
       error.statusCode = 401;
       throw error;
     }
@@ -295,15 +309,17 @@ async function chat(req, res, next) {
       accessToken,
       refreshToken,
       jobId: req.body?.job_id,
-      question: req.body?.question
+      question: req.body?.question,
     });
 
-    return res.status(200).json(success(result, 'chat response returned successfully'));
+    return res
+      .status(200)
+      .json(success(result, "chat response returned successfully"));
   } catch (error) {
     if (!error.statusCode) {
       return res.status(500).json({
         success: false,
-        message: 'something wrong happened, please try again'
+        message: "something wrong happened, please try again",
       });
     }
 
@@ -313,17 +329,22 @@ async function chat(req, res, next) {
 
 async function getMyApplications(req, res, next) {
   try {
-    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
-    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+    const accessToken = getCookieToken(req, "access_tokens", "access_token");
+    const refreshToken = getCookieToken(req, "refresh_tokens", "refresh_token");
 
     if (!accessToken || !refreshToken) {
-      const error = new Error('unauth');
+      const error = new Error("unauth");
       error.statusCode = 401;
       throw error;
     }
 
-    const applications = await getMyCandidateApplications({ accessToken, refreshToken });
-    return res.status(200).json(success(applications, 'applications retrieved successfully'));
+    const applications = await getMyCandidateApplications({
+      accessToken,
+      refreshToken,
+    });
+    return res
+      .status(200)
+      .json(success(applications, "applications retrieved successfully"));
   } catch (error) {
     return next(error);
   }
@@ -338,5 +359,5 @@ module.exports = {
   submitApplication,
   scoreResume,
   chat,
-  getMyApplications
+  getMyApplications,
 };

@@ -1,17 +1,17 @@
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-const path = require('path');
-const { Readable } = require('stream');
-const CandidateModel = require('../models/candidate.model');
-const JobPostModel = require('../models/job-post.model');
-const UploadedResumeModel = require('../models/uploaded-resume.model');
-const SubmittedApplicationModel = require('../models/submitted-application.model');
-const ScoreModel = require('../models/score.model');
-const config = require('../config/env');
-const { mongoose } = require('../config/database');
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const path = require("path");
+const { Readable } = require("stream");
+const CandidateModel = require("../models/candidate.model");
+const JobPostModel = require("../models/job-post.model");
+const UploadedResumeModel = require("../models/uploaded-resume.model");
+const SubmittedApplicationModel = require("../models/submitted-application.model");
+const ScoreModel = require("../models/score.model");
+const config = require("../config/env");
+const { mongoose } = require("../config/database");
 
-const ALLOWED_RESUME_EXTENSIONS = new Set(['.txt', '.docx', '.pdf']);
+const ALLOWED_RESUME_EXTENSIONS = new Set([".txt", ".docx", ".pdf"]);
 
 function createClientError(message, statusCode = 400) {
   const error = new Error(message);
@@ -24,15 +24,23 @@ function buildTokenPayload(candidate, tokenType) {
     sub: String(candidate._id),
     email: candidate.email,
     tokenType,
-    jti: crypto.randomUUID()
+    jti: crypto.randomUUID(),
   };
 }
 
-async function registerCandidate({ name, phone, email, password, is_confirmed }) {
-  const existing = await CandidateModel.findOne({ email: email.toLowerCase() }).lean();
+async function registerCandidate({
+  name,
+  phone,
+  email,
+  password,
+  is_confirmed,
+}) {
+  const existing = await CandidateModel.findOne({
+    email: email.toLowerCase(),
+  }).lean();
 
   if (existing) {
-    throw createClientError('Email is already registered.', 409);
+    throw createClientError("Email is already registered.", 409);
   }
 
   const hashedPassword = await bcrypt.hash(password, 12);
@@ -42,7 +50,7 @@ async function registerCandidate({ name, phone, email, password, is_confirmed })
     phone,
     email,
     password: hashedPassword,
-    is_confirmed
+    is_confirmed,
   });
 
   return {
@@ -50,25 +58,33 @@ async function registerCandidate({ name, phone, email, password, is_confirmed })
     name: created.name,
     phone: created.phone || null,
     email: created.email,
-    is_confirmed: created.is_confirmed
+    is_confirmed: created.is_confirmed,
   };
 }
 
 async function loginCandidate({ email, password }) {
-  const candidate = await CandidateModel.findOne({ email: email.toLowerCase() });
+  const candidate = await CandidateModel.findOne({
+    email: email.toLowerCase(),
+  });
 
   if (!candidate) {
-    throw createClientError('wrong email or password', 404);
+    throw createClientError("wrong email or password", 404);
   }
 
   const isPasswordMatch = await bcrypt.compare(password, candidate.password);
 
   if (!isPasswordMatch) {
-    throw createClientError('wrong email or password', 404);
+    throw createClientError("wrong email or password", 404);
   }
 
-  const accessToken = jwt.sign(buildTokenPayload(candidate, 'access'), config.jwtSecret);
-  const refreshToken = jwt.sign(buildTokenPayload(candidate, 'refresh'), config.jwtRefreshSecret);
+  const accessToken = jwt.sign(
+    buildTokenPayload(candidate, "access"),
+    config.jwtSecret,
+  );
+  const refreshToken = jwt.sign(
+    buildTokenPayload(candidate, "refresh"),
+    config.jwtRefreshSecret,
+  );
 
   if (!Array.isArray(candidate.access_tokens)) {
     candidate.access_tokens = [];
@@ -83,7 +99,7 @@ async function loginCandidate({ email, password }) {
   await candidate.save();
 
   return {
-    message: 'successfully logged in',
+    message: "successfully logged in",
     accessToken,
     refreshToken,
     candidate: {
@@ -91,8 +107,8 @@ async function loginCandidate({ email, password }) {
       name: candidate.name,
       email: candidate.email,
       phone: candidate.phone || null,
-      is_confirmed: candidate.is_confirmed
-    }
+      is_confirmed: candidate.is_confirmed,
+    },
   };
 }
 
@@ -100,25 +116,25 @@ async function logoutCandidate({ accessToken, refreshToken }) {
   await CandidateModel.updateOne(
     {
       access_tokens: accessToken,
-      refresh_tokens: refreshToken
+      refresh_tokens: refreshToken,
     },
     {
       $pull: {
         access_tokens: accessToken,
-        refresh_tokens: refreshToken
-      }
-    }
+        refresh_tokens: refreshToken,
+      },
+    },
   );
 }
 
 async function getActiveCandidateSession({ accessToken, refreshToken }) {
   const candidate = await CandidateModel.findOne({
     access_tokens: accessToken,
-    refresh_tokens: refreshToken
+    refresh_tokens: refreshToken,
   });
 
   if (!candidate) {
-    throw createClientError('unauth', 401);
+    throw createClientError("unauth", 401);
   }
 
   return candidate;
@@ -126,46 +142,48 @@ async function getActiveCandidateSession({ accessToken, refreshToken }) {
 
 function ensureCandidateConfirmed(candidate) {
   if (candidate.is_confirmed !== true) {
-    throw createClientError('confirmation required', 400);
+    throw createClientError("confirmation required", 400);
   }
 }
 
 async function getActiveJobPostsForCandidate({ accessToken, refreshToken }) {
   await getActiveCandidateSession({ accessToken, refreshToken });
 
-  const posts = await JobPostModel.find({ is_active: true }).sort({ posted_at: -1 }).lean();
+  const posts = await JobPostModel.find({ is_active: true })
+    .sort({ posted_at: -1 })
+    .lean();
   return Array.isArray(posts) ? posts : [];
 }
 
 function validateResumeFile(file) {
   if (!file) {
-    throw createClientError('file is required.', 400);
+    throw createClientError("file is required.", 400);
   }
 
-  const extension = path.extname(file.originalname || '').toLowerCase();
+  const extension = path.extname(file.originalname || "").toLowerCase();
 
   if (!ALLOWED_RESUME_EXTENSIONS.has(extension)) {
-    throw createClientError('file type is not allowed.', 400);
+    throw createClientError("file type is not allowed.", 400);
   }
 
   if (!Buffer.isBuffer(file.buffer) || file.buffer.length === 0) {
-    throw createClientError('file is required.', 400);
+    throw createClientError("file is required.", 400);
   }
 }
 
 function uploadBufferToGridFs({ fileBuffer, filename, contentType, metadata }) {
   return new Promise((resolve, reject) => {
     const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-      bucketName: 'fs'
+      bucketName: "fs",
     });
 
     const uploadStream = bucket.openUploadStream(filename, {
       contentType,
-      metadata
+      metadata,
     });
 
-    uploadStream.once('error', reject);
-    uploadStream.once('finish', () => resolve(String(uploadStream.id)));
+    uploadStream.once("error", reject);
+    uploadStream.once("finish", () => resolve(String(uploadStream.id)));
 
     Readable.from(fileBuffer).pipe(uploadStream);
   });
@@ -175,68 +193,76 @@ function streamToBuffer(stream) {
   return new Promise((resolve, reject) => {
     const chunks = [];
 
-    stream.on('data', (chunk) => chunks.push(chunk));
-    stream.once('end', () => resolve(Buffer.concat(chunks)));
-    stream.once('error', reject);
+    stream.on("data", (chunk) => chunks.push(chunk));
+    stream.once("end", () => resolve(Buffer.concat(chunks)));
+    stream.once("error", reject);
   });
 }
 
 async function getGridFsFileById(fileId) {
   if (!mongoose.isValidObjectId(fileId)) {
-    throw createClientError('no file with that id', 404);
+    throw createClientError("no file with that id", 404);
   }
 
   const objectId = new mongoose.Types.ObjectId(fileId);
-  const fileDoc = await mongoose.connection.db.collection('fs.files').findOne({ _id: objectId });
+  const fileDoc = await mongoose.connection.db
+    .collection("fs.files")
+    .findOne({ _id: objectId });
 
   if (!fileDoc) {
-    throw createClientError('no file with that id', 404);
+    throw createClientError("no file with that id", 404);
   }
 
   const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, {
-    bucketName: 'fs'
+    bucketName: "fs",
   });
 
   const readyFile = await streamToBuffer(bucket.openDownloadStream(objectId));
 
   return {
     fileDoc,
-    readyFile
+    readyFile,
   };
 }
 
 function buildFullInfo(job) {
-  const requirements = Array.isArray(job.requirements) ? job.requirements.join('|') : '';
-  const skills = Array.isArray(job.skills) ? job.skills.join('|') : '';
+  const requirements = Array.isArray(job.requirements)
+    ? job.requirements.join("|")
+    : "";
+  const skills = Array.isArray(job.skills) ? job.skills.join("|") : "";
 
-  return `title:${job.title || ''},description:${job.description || ''},requirements:${requirements},employment_type:${job.employment_type || ''},work_mode:${job.work_mode || ''},skills:${skills}`;
+  return `title:${job.title || ""},description:${job.description || ""},requirements:${requirements},employment_type:${job.employment_type || ""},work_mode:${job.work_mode || ""},skills:${skills}`;
 }
 
 function buildScoreResumeEndpoint(baseUrl) {
-  const normalizedBase = String(baseUrl || '').trim().replace(/\/+$/, '');
+  const normalizedBase = String(baseUrl || "")
+    .trim()
+    .replace(/\/+$/, "");
   return `${normalizedBase}/score-resume`;
 }
 
 function buildChatEndpoint(baseUrl) {
-  const normalizedBase = String(baseUrl || '').trim().replace(/\/+$/, '');
+  const normalizedBase = String(baseUrl || "")
+    .trim()
+    .replace(/\/+$/, "");
   return `${normalizedBase}/chat`;
 }
 
 function extractNumericScoreValue(result) {
   const candidateKeys = new Set([
-    'score',
-    'resume_score',
-    'total_score',
-    'match_score',
-    'rating'
+    "score",
+    "resume_score",
+    "total_score",
+    "match_score",
+    "rating",
   ]);
 
   function normalizeNumber(value) {
-    if (typeof value === 'number' && Number.isFinite(value)) {
+    if (typeof value === "number" && Number.isFinite(value)) {
       return Math.trunc(value);
     }
 
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       const parsed = Number.parseFloat(value.trim());
 
       if (Number.isFinite(parsed)) {
@@ -266,7 +292,7 @@ function extractNumericScoreValue(result) {
       return null;
     }
 
-    if (!node || typeof node !== 'object') {
+    if (!node || typeof node !== "object") {
       return null;
     }
 
@@ -294,95 +320,118 @@ function extractNumericScoreValue(result) {
   return walk(result);
 }
 
-async function updateUploadedResumeRateFromScore({ candidateId, postId, fileGridFsId, scoreValue }) {
+async function updateUploadedResumeRateFromScore({
+  candidateId,
+  postId,
+  fileGridFsId,
+  scoreValue,
+}) {
   let updatedResume = null;
 
   const submittedApplication = await SubmittedApplicationModel.findOne({
     candidate_id: candidateId,
-    post_id: postId
+    post_id: postId,
   })
     .sort({ createdAt: -1 })
-    .select('resume_id')
+    .select("resume_id")
     .lean();
 
-  if (submittedApplication?.resume_id && mongoose.isValidObjectId(submittedApplication.resume_id)) {
+  if (
+    submittedApplication?.resume_id &&
+    mongoose.isValidObjectId(submittedApplication.resume_id)
+  ) {
     updatedResume = await UploadedResumeModel.findOneAndUpdate(
       {
         _id: submittedApplication.resume_id,
-        candidate_id: candidateId
-      },
-      {
-        $set: {
-          resume_rate: scoreValue
-        }
-      },
-      {
-        new: true
-      }
-    );
-  }
-
-  if (!updatedResume && typeof fileGridFsId === 'string' && fileGridFsId.trim()) {
-    updatedResume = await UploadedResumeModel.findOneAndUpdate(
-      {
         candidate_id: candidateId,
-        resume_gridfs_id: fileGridFsId.trim()
       },
       {
         $set: {
-          resume_rate: scoreValue
-        }
+          resume_rate: scoreValue,
+        },
       },
       {
         new: true,
-        sort: { createdAt: -1 }
-      }
+      },
+    );
+  }
+
+  if (
+    !updatedResume &&
+    typeof fileGridFsId === "string" &&
+    fileGridFsId.trim()
+  ) {
+    updatedResume = await UploadedResumeModel.findOneAndUpdate(
+      {
+        candidate_id: candidateId,
+        resume_gridfs_id: fileGridFsId.trim(),
+      },
+      {
+        $set: {
+          resume_rate: scoreValue,
+        },
+      },
+      {
+        new: true,
+        sort: { createdAt: -1 },
+      },
     );
   }
 
   return updatedResume;
 }
 
-async function callScoreResumeApi({ fullInfo, readyFile, filename, contentType }) {
+async function callScoreResumeApi({
+  fullInfo,
+  readyFile,
+  filename,
+  contentType,
+}) {
   const formData = new FormData();
-  formData.append('job_description', fullInfo);
+  formData.append("job_description", fullInfo);
   formData.append(
-    'file',
-    new Blob([readyFile], { type: contentType || 'application/octet-stream' }),
-    filename || 'resume.bin'
+    "file",
+    new Blob([readyFile], { type: contentType || "application/octet-stream" }),
+    filename || "resume.bin",
   );
 
   const headers = {};
 
   if (config.agentApiKey) {
-    headers['x-api-key'] = config.agentApiKey;
-    headers['api-key'] = config.agentApiKey;
+    headers["x-api-key"] = config.agentApiKey;
+    headers["api-key"] = config.agentApiKey;
     headers.Authorization = `Bearer ${config.agentApiKey}`;
   }
 
-  const response = await fetch(buildScoreResumeEndpoint(config.agentApiBaseUrl), {
-    method: 'POST',
-    headers,
-    body: formData
-  });
+  const response = await fetch(
+    buildScoreResumeEndpoint(config.agentApiBaseUrl),
+    {
+      method: "POST",
+      headers,
+      body: formData,
+    },
+  );
 
   if (!response.ok) {
-    let responseDetails = '';
+    let responseDetails = "";
 
     try {
       responseDetails = await response.text();
     } catch {
-      responseDetails = '';
+      responseDetails = "";
     }
 
-    const error = createClientError('failed to score resume from upstream service', 502);
+    const error = createClientError(
+      "failed to score resume from upstream service",
+      502,
+    );
     error.details = responseDetails ? responseDetails.slice(0, 500) : undefined;
     throw error;
   }
 
-  const contentTypeHeader = response.headers.get('content-type') || '';
+  const contentTypeHeader = response.headers.get("content-type") || "";
 
-  if (contentTypeHeader.includes('application/json')) {
+  if (contentTypeHeader.includes("application/json")) {
     return response.json();
   }
 
@@ -391,36 +440,39 @@ async function callScoreResumeApi({ fullInfo, readyFile, filename, contentType }
 
 async function callChatApi({ fullInfo, question }) {
   const formData = new FormData();
-  formData.append('job_description', fullInfo);
-  formData.append('question', question);
+  formData.append("job_description", fullInfo);
+  formData.append("question", question);
 
   const headers = {};
 
   if (config.agentApiKey) {
-    headers['x-api-key'] = config.agentApiKey;
-    headers['api-key'] = config.agentApiKey;
+    headers["x-api-key"] = config.agentApiKey;
+    headers["api-key"] = config.agentApiKey;
     headers.Authorization = `Bearer ${config.agentApiKey}`;
   }
 
   const response = await fetch(buildChatEndpoint(config.agentApiBaseUrl), {
-    method: 'POST',
+    method: "POST",
     headers,
-    body: formData
+    body: formData,
   });
 
   if (!response.ok) {
-    throw createClientError('failed to get chat response from upstream service', 502);
+    throw createClientError(
+      "failed to get chat response from upstream service",
+      502,
+    );
   }
 
-  const contentTypeHeader = response.headers.get('content-type') || '';
+  const contentTypeHeader = response.headers.get("content-type") || "";
 
-  if (contentTypeHeader.includes('application/json')) {
+  if (contentTypeHeader.includes("application/json")) {
     return response.json();
   }
 
   const textResponse = await response.text();
   return {
-    response: textResponse
+    response: textResponse,
   };
 }
 
@@ -433,60 +485,76 @@ async function resolveResumeForScoring({ fileId, file, candidate }) {
       filename: file.originalname,
       contentType: file.mimetype,
       metadata: {
-        candidate_id: String(candidate._id)
-      }
+        candidate_id: String(candidate._id),
+      },
     });
 
     return {
       fileDoc: {
         _id: new mongoose.Types.ObjectId(gridFsId),
         filename: file.originalname,
-        contentType: file.mimetype
+        contentType: file.mimetype,
       },
-      readyFile: file.buffer
+      readyFile: file.buffer,
     };
   }
 
-  if (typeof fileId !== 'string' || !fileId.trim()) {
-    throw createClientError('either file or file_id is required.', 400);
+  if (typeof fileId !== "string" || !fileId.trim()) {
+    throw createClientError("either file or file_id is required.", 400);
   }
 
   return getGridFsFileById(fileId.trim());
 }
 
-async function uploadCandidateResume({ accessToken, refreshToken, file, postId = null }) {
+async function uploadCandidateResume({
+  accessToken,
+  refreshToken,
+  file,
+  postId = null,
+}) {
   validateResumeFile(file);
-  const candidate = await getActiveCandidateSession({ accessToken, refreshToken });
+  const candidate = await getActiveCandidateSession({
+    accessToken,
+    refreshToken,
+  });
 
   const gridFsId = await uploadBufferToGridFs({
     fileBuffer: file.buffer,
     filename: file.originalname,
     contentType: file.mimetype,
     metadata: {
-      candidate_id: String(candidate._id)
-    }
+      candidate_id: String(candidate._id),
+    },
   });
 
   const uploadedResume = await UploadedResumeModel.create({
-    post_id: typeof postId === 'string' && postId.trim() ? postId.trim() : null,
+    post_id: typeof postId === "string" && postId.trim() ? postId.trim() : null,
     candidate_id: String(candidate._id),
     candidate_name: candidate.name,
     candidate_email: candidate.email,
     candidate_is_confirmed: candidate.is_confirmed,
     resume_rate: null,
-    resume_gridfs_id: gridFsId
+    resume_gridfs_id: gridFsId,
   });
 
   return uploadedResume;
 }
 
-async function submitCandidateApplication({ accessToken, refreshToken, postId, file }) {
-  if (typeof postId !== 'string' || !postId.trim()) {
-    throw createClientError('post_id is required.', 400);
+async function submitCandidateApplication({
+  accessToken,
+  refreshToken,
+  postId,
+  file,
+}) {
+  if (typeof postId !== "string" || !postId.trim()) {
+    throw createClientError("post_id is required.", 400);
   }
 
   validateResumeFile(file);
-  const candidate = await getActiveCandidateSession({ accessToken, refreshToken });
+  const candidate = await getActiveCandidateSession({
+    accessToken,
+    refreshToken,
+  });
   ensureCandidateConfirmed(candidate);
 
   const candidateId = String(candidate._id);
@@ -494,18 +562,21 @@ async function submitCandidateApplication({ accessToken, refreshToken, postId, f
 
   const existingApplication = await SubmittedApplicationModel.findOne({
     candidate_id: candidateId,
-    post_id: normalizedPostId
-  }).select('_id');
+    post_id: normalizedPostId,
+  }).select("_id");
 
   if (existingApplication) {
-    throw createClientError('you already submitted an application for this post, try to submit in another post.', 400);
+    throw createClientError(
+      "you already submitted an application for this post, try to submit in another post.",
+      400,
+    );
   }
 
   const uploadedResume = await uploadCandidateResume({
     accessToken,
     refreshToken,
     file,
-    postId: normalizedPostId
+    postId: normalizedPostId,
   });
 
   await SubmittedApplicationModel.create({
@@ -515,44 +586,57 @@ async function submitCandidateApplication({ accessToken, refreshToken, postId, f
     candidate_email: candidate.email,
     candidate_is_confirmed: candidate.is_confirmed,
     resume_id: String(uploadedResume._id),
-    statue: 'pending'
+    statue: "pending",
   });
 }
 
-async function scoreCandidateResume({ accessToken, refreshToken, fileId, jobId, file }) {
-  if (typeof jobId !== 'string' || !jobId.trim()) {
-    throw createClientError('job_id is required.', 400);
+async function scoreCandidateResume({
+  accessToken,
+  refreshToken,
+  fileId,
+  jobId,
+  file,
+}) {
+  if (typeof jobId !== "string" || !jobId.trim()) {
+    throw createClientError("job_id is required.", 400);
   }
 
-  const candidate = await getActiveCandidateSession({ accessToken, refreshToken });
+  const candidate = await getActiveCandidateSession({
+    accessToken,
+    refreshToken,
+  });
   ensureCandidateConfirmed(candidate);
 
   const post = await JobPostModel.findById(jobId.trim()).lean();
 
   if (!post) {
-    throw createClientError('there is no post with that id', 404);
+    throw createClientError("there is no post with that id", 404);
   }
 
   const fullInfo = buildFullInfo(post);
-  const { fileDoc, readyFile } = await resolveResumeForScoring({ fileId, file, candidate });
+  const { fileDoc, readyFile } = await resolveResumeForScoring({
+    fileId,
+    file,
+    candidate,
+  });
   const result = await callScoreResumeApi({
     fullInfo,
     readyFile,
     filename: fileDoc.filename,
-    contentType: fileDoc.contentType
+    contentType: fileDoc.contentType,
   });
 
   const scoreValue = extractNumericScoreValue(result);
 
   if (scoreValue === null) {
-    throw createClientError('score value is missing in scoring response', 502);
+    throw createClientError("score value is missing in scoring response", 502);
   }
 
   await updateUploadedResumeRateFromScore({
     candidateId: String(candidate._id),
     postId: String(post._id),
     fileGridFsId: String(fileDoc._id),
-    scoreValue
+    scoreValue,
   });
 
   const scoreDoc = await ScoreModel.create({
@@ -562,47 +646,55 @@ async function scoreCandidateResume({ accessToken, refreshToken, fileId, jobId, 
     candidate_email: candidate.email,
     candidate_is_confirmed: candidate.is_confirmed,
     file_id: String(fileDoc._id),
-    result
+    result,
   });
 
   return {
     _id: scoreDoc._id,
-    result: scoreDoc.result
+    result: scoreDoc.result,
   };
 }
 
 async function chatCandidate({ accessToken, refreshToken, jobId, question }) {
-  if (typeof jobId !== 'string' || !jobId.trim()) {
-    throw createClientError('job_id is required.', 400);
+  if (typeof jobId !== "string" || !jobId.trim()) {
+    throw createClientError("job_id is required.", 400);
   }
 
-  if (typeof question !== 'string' || !question.trim()) {
-    throw createClientError('question is required.', 400);
+  if (typeof question !== "string" || !question.trim()) {
+    throw createClientError("question is required.", 400);
   }
 
-  const candidate = await getActiveCandidateSession({ accessToken, refreshToken });
+  const candidate = await getActiveCandidateSession({
+    accessToken,
+    refreshToken,
+  });
   ensureCandidateConfirmed(candidate);
 
   const post = await JobPostModel.findById(jobId.trim()).lean();
 
   if (!post) {
-    throw createClientError('there is no post with that id', 404);
+    throw createClientError("there is no post with that id", 404);
   }
 
   const fullInfo = buildFullInfo(post);
   const chatResult = await callChatApi({
     fullInfo,
-    question: question.trim()
+    question: question.trim(),
   });
 
   return chatResult;
 }
 
 async function getMyCandidateApplications({ accessToken, refreshToken }) {
-  const candidate = await getActiveCandidateSession({ accessToken, refreshToken });
+  const candidate = await getActiveCandidateSession({
+    accessToken,
+    refreshToken,
+  });
   const candidateId = String(candidate._id);
 
-  const applications = await SubmittedApplicationModel.find({ candidate_id: candidateId })
+  const applications = await SubmittedApplicationModel.find({
+    candidate_id: candidateId,
+  })
     .sort({ createdAt: -1 })
     .lean();
 
@@ -611,31 +703,37 @@ async function getMyCandidateApplications({ accessToken, refreshToken }) {
       const post = await JobPostModel.findById(app.post_id).lean();
       const scoreDoc = await ScoreModel.findOne({
         candidate_id: candidateId,
-        post_id: String(app.post_id)
+        post_id: String(app.post_id),
       })
         .sort({ createdAt: -1 })
         .lean();
 
       const raw = scoreDoc?.result ?? {};
-      const score = raw.score ?? raw.match_score ?? raw.resume_score ?? raw.total_score ?? raw.rating ?? 0;
-      const summary = raw.summary ?? raw.feedback ?? raw.analysis ?? '';
+      const score =
+        raw.score ??
+        raw.match_score ??
+        raw.resume_score ??
+        raw.total_score ??
+        raw.rating ??
+        0;
+      const summary = raw.summary ?? raw.feedback ?? raw.analysis ?? "";
       const strengths = raw.strengths ?? raw.pros ?? [];
       const weaknesses = raw.weaknesses ?? raw.cons ?? raw.improvements ?? [];
 
       return {
         _id: String(app._id),
         post_id: String(app.post_id),
-        appliedRole: post?.title ?? '',
-        location: post?.work_mode ?? '',
-        appliedDate: app.createdAt ? String(app.createdAt) : '',
-        status: app.statue ?? 'pending',
-        score: typeof score === 'number' ? score : Number(score) || 0,
+        appliedRole: post?.title ?? "",
+        location: post?.work_mode ?? "",
+        appliedDate: app.createdAt ? String(app.createdAt) : "",
+        status: app.statue ?? "pending",
+        score: typeof score === "number" ? score : Number(score) || 0,
         summary,
         strengths: Array.isArray(strengths) ? strengths : [],
         weaknesses: Array.isArray(weaknesses) ? weaknesses : [],
-        emails: []
+        emails: [],
       };
-    })
+    }),
   );
 
   return results;
@@ -650,5 +748,5 @@ module.exports = {
   submitCandidateApplication,
   scoreCandidateResume,
   chatCandidate,
-  getMyCandidateApplications
+  getMyCandidateApplications,
 };
