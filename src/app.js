@@ -16,6 +16,8 @@ const ALLOWED_CORS_ORIGINS = [
 ];
 
 const localhostOriginPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+const vercelSmartHireOriginPattern =
+	/^https:\/\/smarthire(?:-[a-z0-9]+)?(?:-malak-alshafeys-projects)?\.vercel\.app$/;
 
 const corsOptions = {
 	origin(origin, callback) {
@@ -23,7 +25,11 @@ const corsOptions = {
 			return callback(null, true);
 		}
 
-		if (ALLOWED_CORS_ORIGINS.includes(origin) || localhostOriginPattern.test(origin)) {
+		if (
+			ALLOWED_CORS_ORIGINS.includes(origin) ||
+			localhostOriginPattern.test(origin) ||
+			vercelSmartHireOriginPattern.test(origin)
+		) {
 			return callback(null, true);
 		}
 
