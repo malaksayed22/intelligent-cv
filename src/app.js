@@ -13,6 +13,7 @@ const ALLOWED_CORS_ORIGINS = [
 	'http://localhost:5173',
 	'http://127.0.0.1:5173',
 	'https://smarthire-rho.vercel.app',
+	'https://smart-hire-build.vercel.app'
 ];
 
 const localhostOriginPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
