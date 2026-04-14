@@ -155,6 +155,13 @@ async function getActiveJobPostsForCandidate({ accessToken, refreshToken }) {
   return Array.isArray(posts) ? posts : [];
 }
 
+async function getPublicJobPosts() {
+  const posts = await JobPostModel.find({ is_active: true })
+    .sort({ createdAt: -1 })
+    .lean();
+  return Array.isArray(posts) ? posts : [];
+}
+
 function validateResumeFile(file) {
   if (!file) {
     throw createClientError("file is required.", 400);
@@ -744,6 +751,7 @@ module.exports = {
   loginCandidate,
   logoutCandidate,
   getActiveJobPostsForCandidate,
+  getPublicJobPosts,
   uploadCandidateResume,
   submitCandidateApplication,
   scoreCandidateResume,
