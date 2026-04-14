@@ -327,6 +327,43 @@ function extractNumericScoreValue(result) {
   return walk(result);
 }
 
+function unwrapScoreAnalysisPayload(payload) {
+  let current = payload;
+
+  for (let depth = 0; depth < 5; depth += 1) {
+    if (!current || typeof current !== "object") {
+      break;
+    }
+
+    if (
+      current.score != null ||
+      current.match_score != null ||
+      current.resume_score != null ||
+      current.total_score != null ||
+      current.rating != null ||
+      current.summary != null ||
+      Array.isArray(current.strengths) ||
+      Array.isArray(current.weaknesses)
+    ) {
+      return current;
+    }
+
+    if (current.result != null) {
+      current = current.result;
+      continue;
+    }
+
+    if (current.data != null) {
+      current = current.data;
+      continue;
+    }
+
+    break;
+  }
+
+  return current || {};
+}
+
 async function updateUploadedResumeRateFromScore({
   candidateId,
   postId,
@@ -715,14 +752,8 @@ async function getMyCandidateApplications({ accessToken, refreshToken }) {
         .sort({ createdAt: -1 })
         .lean();
 
-      const raw = scoreDoc?.result ?? {};
-      const score =
-        raw.score ??
-        raw.match_score ??
-        raw.resume_score ??
-        raw.total_score ??
-        raw.rating ??
-        0;
+      const raw = unwrapScoreAnalysisPayload(scoreDoc?.result ?? {});
+      const score = extractNumericScoreValue(raw) ?? 0;
       const summary = raw.summary ?? raw.feedback ?? raw.analysis ?? "";
       const strengths = raw.strengths ?? raw.pros ?? [];
       const weaknesses = raw.weaknesses ?? raw.cons ?? raw.improvements ?? [];
