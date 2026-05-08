@@ -2,7 +2,11 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const HrModel = require('../models/hr.model');
+const CandidateModel = require('../models/candidate.model');
 const UploadedResumeModel = require('../models/uploaded-resume.model');
+const SubmittedApplicationModel = require('../models/submitted-application.model');
+const ScoreModel = require('../models/score.model');
+const JobPostModel = require('../models/job-post.model');
 const config = require('../config/env');
 const { mongoose } = require('../config/database');
 const { sendConfirmationCodeEmail } = require('./email.service');
@@ -225,6 +229,258 @@ function normalizeRankedResume(resume, rank) {
   };
 }
 
+function extractNumericScoreValue(result) {
+  const candidateKeys = new Set([
+    'score',
+    'resume_score',
+    'total_score',
+    'match_score',
+    'rating'
+  ]);
+
+  function normalizeNumber(value) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return Math.trunc(value);
+    }
+
+    if (typeof value === 'string') {
+      const parsed = Number.parseFloat(value.trim());
+
+      if (Number.isFinite(parsed)) {
+        return Math.trunc(parsed);
+      }
+    }
+
+    return null;
+  }
+
+  function walk(node) {
+    const direct = normalizeNumber(node);
+
+    if (direct !== null) {
+      return direct;
+    }
+
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        const fromItem = walk(item);
+
+        if (fromItem !== null) {
+          return fromItem;
+        }
+      }
+
+      return null;
+    }
+
+    if (!node || typeof node !== 'object') {
+      return null;
+    }
+
+    for (const [key, value] of Object.entries(node)) {
+      if (candidateKeys.has(String(key).toLowerCase())) {
+        const fromKnownKey = normalizeNumber(value);
+
+        if (fromKnownKey !== null) {
+          return fromKnownKey;
+        }
+      }
+    }
+
+    for (const value of Object.values(node)) {
+      const nested = walk(value);
+
+      if (nested !== null) {
+        return nested;
+      }
+    }
+
+    return null;
+  }
+
+  return walk(result);
+}
+
+function unwrapScoreAnalysisPayload(payload) {
+  let current = payload;
+
+  for (let depth = 0; depth < 5; depth += 1) {
+    if (!current || typeof current !== 'object') {
+      break;
+    }
+
+    if (
+      current.score != null
+      || current.match_score != null
+      || current.resume_score != null
+      || current.total_score != null
+      || current.rating != null
+      || current.summary != null
+      || Array.isArray(current.strengths)
+      || Array.isArray(current.weaknesses)
+    ) {
+      return current;
+    }
+
+    if (current.result != null) {
+      current = current.result;
+      continue;
+    }
+
+    if (current.data != null) {
+      current = current.data;
+      continue;
+    }
+
+    break;
+  }
+
+  return current || {};
+}
+
+function normalizeApplicationStatus(status) {
+  const raw = typeof status === 'string' ? status.trim().toLowerCase() : '';
+  const allowed = new Set([
+    'new',
+    'reviewing',
+    'shortlisted',
+    'interview',
+    'hired',
+    'rejected'
+  ]);
+
+  if (raw === 'pending') {
+    return 'new';
+  }
+
+  return allowed.has(raw) ? raw : 'new';
+}
+
+async function getHrApplications({ accessToken, refreshToken, postId }) {
+  await getActiveConfirmedHr({ accessToken, refreshToken });
+
+  const query = {};
+  const normalizedPostId = typeof postId === 'string' ? postId.trim() : '';
+
+  if (normalizedPostId) {
+    query.post_id = normalizedPostId;
+  }
+
+  const applications = await SubmittedApplicationModel.find(query)
+    .sort({ createdAt: -1 })
+    .lean();
+
+  if (!Array.isArray(applications) || applications.length === 0) {
+    return [];
+  }
+
+  return Promise.all(applications.map(async (app) => {
+    const candidateId = String(app.candidate_id || '');
+    const postIdValue = String(app.post_id || '');
+
+    const [candidate, post, scoreDoc] = await Promise.all([
+      candidateId ? CandidateModel.findById(candidateId).lean() : null,
+      postIdValue ? JobPostModel.findById(postIdValue).lean() : null,
+      candidateId && postIdValue
+        ? ScoreModel.findOne({ candidate_id: candidateId, post_id: postIdValue })
+          .sort({ createdAt: -1 })
+          .lean()
+        : null
+    ]);
+
+    const rawScore = unwrapScoreAnalysisPayload(scoreDoc?.result ?? {});
+    const scoreValue = extractNumericScoreValue(rawScore);
+
+    return {
+      _id: String(app._id),
+      post_id: postIdValue || null,
+      candidate: {
+        id: candidateId || null,
+        name: candidate?.name || app.candidate_name || null,
+        email: candidate?.email || app.candidate_email || null,
+        phone: candidate?.phone || null,
+        is_confirmed: candidate?.is_confirmed === true || app.candidate_is_confirmed === true
+      },
+      job: post
+        ? {
+          id: String(post._id),
+          title: post.title || '',
+          work_mode: post.work_mode || '',
+          employment_type: post.employment_type || ''
+        }
+        : null,
+      status: normalizeApplicationStatus(app.statue || app.status),
+      appliedDate: app.createdAt ? String(app.createdAt) : '',
+      resume_id: app.resume_id || null,
+      score: {
+        value: typeof scoreValue === 'number' ? scoreValue : null,
+        summary: rawScore.summary ?? rawScore.feedback ?? rawScore.analysis ?? '',
+        strengths: Array.isArray(rawScore.strengths) ? rawScore.strengths : [],
+        weaknesses: Array.isArray(rawScore.weaknesses) ? rawScore.weaknesses : []
+      }
+    };
+  }));
+}
+
+async function getHrApplicationById({ accessToken, refreshToken, applicationId }) {
+  await getActiveConfirmedHr({ accessToken, refreshToken });
+
+  if (!mongoose.isValidObjectId(applicationId)) {
+    throw createClientError('application id is invalid', 400);
+  }
+
+  const app = await SubmittedApplicationModel.findById(applicationId).lean();
+
+  if (!app) {
+    throw createClientError('application not found', 404);
+  }
+
+  const candidateId = String(app.candidate_id || '');
+  const postIdValue = String(app.post_id || '');
+
+  const [candidate, post, scoreDoc] = await Promise.all([
+    candidateId ? CandidateModel.findById(candidateId).lean() : null,
+    postIdValue ? JobPostModel.findById(postIdValue).lean() : null,
+    candidateId && postIdValue
+      ? ScoreModel.findOne({ candidate_id: candidateId, post_id: postIdValue })
+        .sort({ createdAt: -1 })
+        .lean()
+      : null
+  ]);
+
+  const rawScore = unwrapScoreAnalysisPayload(scoreDoc?.result ?? {});
+  const scoreValue = extractNumericScoreValue(rawScore);
+
+  return {
+    _id: String(app._id),
+    post_id: postIdValue || null,
+    candidate: {
+      id: candidateId || null,
+      name: candidate?.name || app.candidate_name || null,
+      email: candidate?.email || app.candidate_email || null,
+      phone: candidate?.phone || null,
+      is_confirmed: candidate?.is_confirmed === true || app.candidate_is_confirmed === true
+    },
+    job: post
+      ? {
+        id: String(post._id),
+        title: post.title || '',
+        work_mode: post.work_mode || '',
+        employment_type: post.employment_type || ''
+      }
+      : null,
+    status: normalizeApplicationStatus(app.statue || app.status),
+    appliedDate: app.createdAt ? String(app.createdAt) : '',
+    resume_id: app.resume_id || null,
+    score: {
+      value: typeof scoreValue === 'number' ? scoreValue : null,
+      summary: rawScore.summary ?? rawScore.feedback ?? rawScore.analysis ?? '',
+      strengths: Array.isArray(rawScore.strengths) ? rawScore.strengths : [],
+      weaknesses: Array.isArray(rawScore.weaknesses) ? rawScore.weaknesses : []
+    }
+  };
+}
+
 async function rankCandidatesByResumeRate({ accessToken, refreshToken, postId }) {
   await getActiveConfirmedHr({ accessToken, refreshToken });
 
@@ -305,6 +561,8 @@ module.exports = {
   registerHr,
   loginHr,
   logoutHr,
+  getHrApplications,
+  getHrApplicationById,
   rankCandidatesByResumeRate,
   sendEmailConfirmationCode,
   verifyEmailConfirmationCode

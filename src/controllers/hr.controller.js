@@ -3,6 +3,8 @@ const {
   registerHr,
   loginHr,
   logoutHr,
+  getHrApplications,
+  getHrApplicationById,
   rankCandidatesByResumeRate
 } = require('../services/hr.service');
 const {
@@ -294,6 +296,60 @@ async function rankCandidates(req, res, next) {
   }
 }
 
+async function listApplications(req, res, next) {
+  try {
+    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
+    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+
+    if (!accessToken || !refreshToken) {
+      const error = new Error('unauth');
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const applications = await getHrApplications({
+      accessToken,
+      refreshToken,
+      postId: req.query?.post_id || null
+    });
+
+    return res.status(200).json(success(applications, 'applications retrieved successfully'));
+  } catch (error) {
+    if (!error.statusCode) {
+      return res.status(500).json(errorResponse('something went wrong while fetching applications'));
+    }
+
+    return next(error);
+  }
+}
+
+async function getApplication(req, res, next) {
+  try {
+    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
+    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+
+    if (!accessToken || !refreshToken) {
+      const error = new Error('unauth');
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const application = await getHrApplicationById({
+      accessToken,
+      refreshToken,
+      applicationId: req.params?.id
+    });
+
+    return res.status(200).json(success(application, 'application retrieved successfully'));
+  } catch (error) {
+    if (!error.statusCode) {
+      return res.status(500).json(errorResponse('something went wrong while fetching application'));
+    }
+
+    return next(error);
+  }
+}
+
 module.exports = {
   registration,
   login,
@@ -302,5 +358,7 @@ module.exports = {
   getPosts,
   updatePost,
   deletePost,
-  rankCandidates
+  rankCandidates,
+  listApplications,
+  getApplication
 };
