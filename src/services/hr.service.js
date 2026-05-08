@@ -213,6 +213,9 @@ function normalizeRankedResume(resume, rank) {
     resume_id: String(resume._id),
     post_id: resume.post_id || null,
     resume_rate: Number.isFinite(resume.resume_rate) ? resume.resume_rate : null,
+    name: resume.candidate_name || null,
+    email: resume.candidate_email || null,
+    score: Number.isFinite(resume.resume_rate) ? resume.resume_rate : null,
     candidate: {
       candidate_id: resume.candidate_id || null,
       name: resume.candidate_name || null,
