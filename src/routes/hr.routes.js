@@ -9,6 +9,7 @@ const {
 	getPosts,
 	updatePost,
 	deletePost,
+	updateApplicationStatus,
 	rankCandidates,
 	listApplications,
 	getApplication
@@ -46,6 +47,12 @@ hrRouter.get('/rank-candidates', rankCandidates);
 hrRouter.get('/applications', listApplications);
 hrRouter.get('/applications/:id', getApplication);
 hrRouter.put('/update-post', requireFormContentType, formDataParser.none(), updatePost);
+hrRouter.put(
+	'/update-application-status',
+	requireFormContentType,
+	formDataParser.none(),
+	updateApplicationStatus
+);
 hrRouter.delete('/delete-post', requireFormContentType, formDataParser.none(), deletePost);
 
 module.exports = hrRouter;

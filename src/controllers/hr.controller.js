@@ -5,6 +5,7 @@ const {
   logoutHr,
   getHrApplications,
   getHrApplicationById,
+  updateHrApplicationStatus,
   rankCandidatesByResumeRate
 } = require('../services/hr.service');
 const {
@@ -269,6 +270,44 @@ async function deletePost(req, res, next) {
   }
 }
 
+async function updateApplicationStatus(req, res, next) {
+  try {
+    const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
+    const refreshToken = getCookieToken(req, 'refresh_tokens', 'refresh_token');
+
+    if (!accessToken || !refreshToken) {
+      const error = new Error('unauth');
+      error.statusCode = 401;
+      throw error;
+    }
+
+    const body = req.body || {};
+    const applicationId = body.application_id || body._id || '';
+    const postId = body.post_id;
+    const status = body.status;
+
+    const updated = await updateHrApplicationStatus({
+      accessToken,
+      refreshToken,
+      applicationId,
+      postId,
+      status
+    });
+
+    return res
+      .status(200)
+      .json(success(updated, 'application status updated successfully'));
+  } catch (error) {
+    if (!error.statusCode) {
+      return res
+        .status(500)
+        .json(errorResponse('something went wrong while updating application status'));
+    }
+
+    return next(error);
+  }
+}
+
 async function rankCandidates(req, res, next) {
   try {
     const accessToken = getCookieToken(req, 'access_tokens', 'access_token');
@@ -358,6 +397,7 @@ module.exports = {
   getPosts,
   updatePost,
   deletePost,
+  updateApplicationStatus,
   rankCandidates,
   listApplications,
   getApplication

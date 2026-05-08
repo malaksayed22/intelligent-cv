@@ -425,6 +425,51 @@ async function getHrApplications({ accessToken, refreshToken, postId }) {
   }));
 }
 
+async function updateHrApplicationStatus({
+  accessToken,
+  refreshToken,
+  applicationId,
+  postId,
+  status
+}) {
+  await getActiveConfirmedHr({ accessToken, refreshToken });
+
+  const rawId =
+    typeof applicationId === 'string'
+      ? applicationId.trim()
+      : String(applicationId || '').trim();
+  if (!rawId || !mongoose.isValidObjectId(rawId)) {
+    throw createClientError('application id is invalid', 400);
+  }
+
+  const statusRaw = typeof status === 'string' ? status.trim() : '';
+  if (!statusRaw) {
+    throw createClientError('status is required', 400);
+  }
+  const normalizedStatus = normalizeApplicationStatus(statusRaw);
+
+  const doc = await SubmittedApplicationModel.findById(rawId);
+  if (!doc) {
+    throw createClientError('application not found', 404);
+  }
+
+  const normalizedPostId =
+    postId != null && String(postId).trim() !== ''
+      ? String(postId).trim()
+      : '';
+  if (
+    normalizedPostId &&
+    String(doc.post_id || '').trim() !== normalizedPostId
+  ) {
+    throw createClientError('application does not belong to this job post', 403);
+  }
+
+  doc.statue = normalizedStatus;
+  await doc.save();
+
+  return getHrApplicationById({ accessToken, refreshToken, applicationId: rawId });
+}
+
 async function getHrApplicationById({ accessToken, refreshToken, applicationId }) {
   await getActiveConfirmedHr({ accessToken, refreshToken });
 
@@ -613,6 +658,7 @@ module.exports = {
   logoutHr,
   getHrApplications,
   getHrApplicationById,
+  updateHrApplicationStatus,
   rankCandidatesByResumeRate,
   sendEmailConfirmationCode,
   verifyEmailConfirmationCode
