@@ -17,8 +17,11 @@ const ALLOWED_CORS_ORIGINS = [
 ];
 
 const localhostOriginPattern = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+/** Production + Vercel preview deployments for this project */
 const vercelSmartHireOriginPattern =
-	/^https:\/\/smarthire(?:-[a-z0-9]+)?(?:-malak-alshafeys-projects)?\.vercel\.app$/;
+	/^https:\/\/smart-hire-build[a-z0-9-]*(?:-[a-z0-9-]+)*\.vercel\.app$/i;
+const legacySmarthireSingleNamePattern =
+	/^https:\/\/smarthire(?:-[a-z0-9]+)?(?:-malak-alshafeys-projects)?\.vercel\.app$/i;
 
 const corsOptions = {
 	origin(origin, callback) {
@@ -29,7 +32,8 @@ const corsOptions = {
 		if (
 			ALLOWED_CORS_ORIGINS.includes(origin) ||
 			localhostOriginPattern.test(origin) ||
-			vercelSmartHireOriginPattern.test(origin)
+			vercelSmartHireOriginPattern.test(origin) ||
+			legacySmarthireSingleNamePattern.test(origin)
 		) {
 			return callback(null, true);
 		}
