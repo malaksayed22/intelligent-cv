@@ -36,6 +36,7 @@ const config = {
 	smtpFrom: process.env.SMTP_FROM || '',
 	smtpSecure: String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
 	agentApiBaseUrl: process.env.AGENT_API_BASE_URL || 'http://localhost:8000',
+	/** Must match SMARTHIRE_API_KEY on the Python SmartHire_Agent (Railway) service. */
 	agentApiKey: process.env.SMARTHIRE_API_KEY || process.env.AGENT_API_KEY || ''
 };
 
