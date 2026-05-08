@@ -211,15 +211,18 @@ async function getActiveConfirmedHr({ accessToken, refreshToken }) {
   return hr;
 }
 
-function normalizeRankedResume(resume, rank) {
+function normalizeRankedResume(resume, rank, applicationId = null) {
   return {
     rank,
+    _id: String(resume._id),
+    application_id: applicationId || null,
     resume_id: String(resume._id),
     post_id: resume.post_id || null,
     resume_rate: Number.isFinite(resume.resume_rate) ? resume.resume_rate : null,
     name: resume.candidate_name || null,
     email: resume.candidate_email || null,
     score: Number.isFinite(resume.resume_rate) ? resume.resume_rate : null,
+    match_score: Number.isFinite(resume.resume_rate) ? resume.resume_rate : null,
     candidate: {
       candidate_id: resume.candidate_id || null,
       name: resume.candidate_name || null,
@@ -490,9 +493,50 @@ async function rankCandidatesByResumeRate({ accessToken, refreshToken, postId })
     throw createClientError('post_id is required.', 400);
   }
 
-  const resumes = await UploadedResumeModel.find({
-    post_id: normalizedPostId
-  }).lean();
+  const applications = await SubmittedApplicationModel.find({ post_id: normalizedPostId })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const resumeObjectIds = [];
+  for (const app of applications) {
+    const rid = app?.resume_id;
+    if (!rid) continue;
+    const s = String(rid).trim();
+    if (s && mongoose.isValidObjectId(s)) {
+      resumeObjectIds.push(new mongoose.Types.ObjectId(s));
+    }
+  }
+
+  const appIdByResumeId = new Map();
+  for (const app of applications) {
+    if (!app?.resume_id) continue;
+    const k = String(app.resume_id).trim();
+    if (k && !appIdByResumeId.has(k)) {
+      appIdByResumeId.set(k, String(app._id));
+    }
+  }
+
+  const [byPost, byIdFromApplication] = await Promise.all([
+    UploadedResumeModel.find({ post_id: normalizedPostId }).lean(),
+    resumeObjectIds.length
+      ? UploadedResumeModel.find({ _id: { $in: resumeObjectIds } }).lean()
+      : []
+  ]);
+
+  const merged = new Map();
+  for (const r of byPost) {
+    merged.set(String(r._id), r);
+  }
+  for (const r of byIdFromApplication) {
+    const key = String(r._id);
+    const next = { ...r };
+    if (!next.post_id) {
+      next.post_id = normalizedPostId;
+    }
+    merged.set(key, next);
+  }
+
+  let resumes = Array.from(merged.values());
 
   if (!Array.isArray(resumes) || resumes.length === 0) {
     return [];
@@ -509,7 +553,13 @@ async function rankCandidatesByResumeRate({ accessToken, refreshToken, postId })
     return String(a._id).localeCompare(String(b._id));
   });
 
-  return resumes.map((resume, index) => normalizeRankedResume(resume, index + 1));
+  return resumes.map((resume, index) =>
+    normalizeRankedResume(
+      resume,
+      index + 1,
+      appIdByResumeId.get(String(resume._id)) || null
+    )
+  );
 }
 
 async function sendEmailConfirmationCode({ accessToken, refreshToken }) {

@@ -283,7 +283,7 @@ async function rankCandidates(req, res, next) {
     const rankedCandidates = await rankCandidatesByResumeRate({
       accessToken,
       refreshToken,
-      postId: req.query?.post_id || req.body?.post_id
+      postId: req.query?.post_id || req.query?.job_id || req.body?.post_id
     });
 
     return res.status(200).json(success(rankedCandidates, 'ranked candidates retrieved successfully'));
@@ -310,7 +310,7 @@ async function listApplications(req, res, next) {
     const applications = await getHrApplications({
       accessToken,
       refreshToken,
-      postId: req.query?.post_id || null
+      postId: req.query?.post_id || req.query?.job_id || null
     });
 
     return res.status(200).json(success(applications, 'applications retrieved successfully'));

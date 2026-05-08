@@ -228,7 +228,7 @@ async function submitApplication(req, res, next) {
     await submitCandidateApplication({
       accessToken,
       refreshToken,
-      postId: req.body?.post_id,
+      postId: req.body?.post_id || req.body?.job_id,
       file: req.file,
     });
 
