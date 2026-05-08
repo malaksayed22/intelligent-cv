@@ -5,6 +5,12 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env'), override: true });
 
 const nodeEnv = process.env.NODE_ENV || 'development';
 
+/** Python SmartHire_Agent (FastAPI). Override with AGENT_API_BASE_URL on Railway if needed. */
+const defaultAgentApiBaseUrl =
+	nodeEnv === 'production'
+		? 'https://smarthire-agent-production.up.railway.app'
+		: 'http://localhost:8000';
+
 const fallbackMongoUri = process.env.MONGODB_URI || '';
 const mongoUriDev = process.env.MONGODB_URI_DEV || fallbackMongoUri;
 const mongoUriProd = process.env.MONGO_URL_PROD || process.env.MONGODB_URI_PROD || fallbackMongoUri;
@@ -35,7 +41,8 @@ const config = {
 	smtpPass: process.env.SMTP_PASS || '',
 	smtpFrom: process.env.SMTP_FROM || '',
 	smtpSecure: String(process.env.SMTP_SECURE || 'false').toLowerCase() === 'true',
-	agentApiBaseUrl: process.env.AGENT_API_BASE_URL || 'http://localhost:8000',
+	agentApiBaseUrl:
+		process.env.AGENT_API_BASE_URL || defaultAgentApiBaseUrl,
 	/** Must match SMARTHIRE_API_KEY on the Python SmartHire_Agent (Railway) service. */
 	agentApiKey: process.env.SMARTHIRE_API_KEY || process.env.AGENT_API_KEY || ''
 };
